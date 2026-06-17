@@ -255,7 +255,35 @@ def bulk_import(db: Session, book_id: int, req: BulkImportRequest) -> dict:
         )
         db.add(chapter)
         db.flush()
-        analysis = _apply_analysis_to_chapter(db, chapter)
+        imported_knowledge_points = list(chapter_data.knowledge_points or [])
+        if imported_knowledge_points:
+            db.query(KnowledgePoint).filter(KnowledgePoint.chapter_id == chapter.id).delete()
+            for kp_data in imported_knowledge_points:
+                db.add(
+                    KnowledgePoint(
+                        chapter_id=chapter.id,
+                        title=kp_data.title,
+                        description=kp_data.description,
+                        importance=kp_data.importance,
+                        estimated_minutes=kp_data.estimated_minutes,
+                        order_index=kp_data.order_index,
+                    )
+                )
+            chapter.status = chapter_data.status if hasattr(chapter_data, "status") else "analyzed"
+            analysis = {
+                "knowledge_points": [
+                    {
+                        "title": kp.title,
+                        "description": kp.description,
+                        "importance": kp.importance,
+                        "estimated_minutes": kp.estimated_minutes,
+                        "order_index": kp.order_index,
+                    }
+                    for kp in imported_knowledge_points
+                ]
+            }
+        else:
+            analysis = _apply_analysis_to_chapter(db, chapter)
         created.append(
             {
                 "id": chapter.id,

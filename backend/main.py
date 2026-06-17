@@ -24,6 +24,7 @@ from .core.exceptions import AppException
 from .routers import admin, analysis, books, config_route, notifications, plan
 from .routers.auth import router as auth_router
 from .services.notification_service import start_notification_scheduler
+from .services.seed_service import ensure_preset_books_seeded
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -128,5 +129,11 @@ app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="fronte
 def on_startup():
     init_db()
     logger.info("Database initialized")
+    db = SessionLocal()
+    try:
+        seeded_count = ensure_preset_books_seeded(db)
+        logger.info("Preset seed check finished | seeded=%s", seeded_count)
+    finally:
+        db.close()
     start_notification_scheduler(SessionLocal)
     logger.info("Application started")

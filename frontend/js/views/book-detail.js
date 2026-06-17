@@ -9,7 +9,12 @@ router.register("book-detail", async (bookId) => {
             api.getBook(bookId),
             api.getChapters(bookId)
         ]);
-        setPage(book.title, `${chapters.length} 章${book.status === "analyzed" ? " · 已分析" : ""}`);
+        const totalKnowledgePoints = chapters.reduce((sum, ch) => sum + (ch.knowledge_point_count || 0), 0);
+        const hasKnowledgePoints = totalKnowledgePoints > 0;
+        setPage(
+            book.title,
+            `${chapters.length} 章${hasKnowledgePoints ? ` · ${totalKnowledgePoints} 个知识点` : book.status === "analyzed" ? " · 已分析" : ""}`
+        );
 
         let html = `
             <div class="card mb-16">
@@ -25,8 +30,8 @@ router.register("book-detail", async (bookId) => {
             </div>
             <div style="display:flex;gap:12px;margin-bottom:16px">
                 <button class="btn btn-primary" id="showChaptersBtn">📖 章节列表</button>
-                <button class="btn btn-secondary" id="showKpBtn" ${book.status !== "analyzed" ? "disabled" : ""}>📋 全部知识点</button>
-                ${book.status === "analyzed" ? `<button class="btn btn-success" onclick="router.go('plans','new',${book.id})">🚀 生成计划</button>` : ""}
+                <button class="btn btn-secondary" id="showKpBtn" ${!hasKnowledgePoints ? "disabled" : ""}>📋 全部知识点</button>
+                ${hasKnowledgePoints ? `<button class="btn btn-success" onclick="router.go('plans','new',${book.id})">🚀 生成计划</button>` : ""}
             </div>
             <div id="detailContent"></div>
         `;
@@ -44,7 +49,7 @@ router.register("book-detail", async (bookId) => {
                     <td>${escHtml(ch.title)}</td>
                     <td><span class="badge badge-${ch.status}">${statusLabel[ch.status] || ch.status}</span></td>
                     <td>${ch.knowledge_point_count}</td>
-                    <td>${ch.status === "analyzed" ? `<button class="btn btn-ghost btn-sm" onclick="showChapterKps(${ch.id},'${escHtml(ch.title)}')">📋 知识点</button>` : ""}</td>
+                    <td>${ch.knowledge_point_count > 0 ? `<button class="btn btn-ghost btn-sm" onclick="showChapterKps(${ch.id},'${escHtml(ch.title)}')">📋 知识点</button>` : ""}</td>
                 </tr>`;
             }
             html += `</tbody></table></div></div></div>`;

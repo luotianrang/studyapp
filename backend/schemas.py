@@ -42,6 +42,7 @@ class ChapterImport(BaseModel):
     title: str
     chapter_number: int = 0
     content: str = ""
+    status: str = "analyzed"
     knowledge_points: List[KnowledgePointImport] = []
 
 
