@@ -1,0 +1,921 @@
+{
+  "chapters": [
+    {
+      "title": "第1章 函数与极限",
+      "chapter_number": 1,
+      "content": "",
+      "knowledge_points": [
+        {
+          "title": "映射的概念与分类",
+          "description": "所属小节：1.1 映射与函数  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 0
+        },
+        {
+          "title": "函数定义域与对应法则",
+          "description": "所属小节：1.1 映射与函数  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 1
+        },
+        {
+          "title": "函数的几种特性（有界、单调、奇偶、周期）",
+          "description": "所属小节：1.1 映射与函数  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 2
+        },
+        {
+          "title": "反函数与复合函数",
+          "description": "所属小节：1.1 映射与函数  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 3
+        },
+        {
+          "title": "基本初等函数与初等函数",
+          "description": "所属小节：1.1 映射与函数  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 4
+        },
+        {
+          "title": "数列极限的定义（ε-N语言）",
+          "description": "所属小节：1.2 数列的极限  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 5
+        },
+        {
+          "title": "收敛数列的性质（唯一性、有界性、保号性）",
+          "description": "所属小节：1.2 数列的极限  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 6
+        },
+        {
+          "title": "极限的四则运算法则（数列）",
+          "description": "所属小节：1.2 数列的极限  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 7
+        },
+        {
+          "title": "函数极限的定义（ε-δ语言）",
+          "description": "所属小节：1.3 函数的极限  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 8
+        },
+        {
+          "title": "单侧极限（左极限、右极限）",
+          "description": "所属小节：1.3 函数的极限  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 9
+        },
+        {
+          "title": "函数极限的性质（唯一性、局部有界性、保号性）",
+          "description": "所属小节：1.3 函数的极限  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 10
+        },
+        {
+          "title": "极限与单侧极限的关系",
+          "description": "所属小节：1.3 函数的极限  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 11
+        },
+        {
+          "title": "无穷小的定义与性质",
+          "description": "所属小节：1.4 无穷小与无穷大  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 12
+        },
+        {
+          "title": "无穷大的定义与性质",
+          "description": "所属小节：1.4 无穷小与无穷大  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 13
+        },
+        {
+          "title": "无穷小与函数极限的关系",
+          "description": "所属小节：1.4 无穷小与无穷大  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 14
+        },
+        {
+          "title": "无穷大与无穷小的关系",
+          "description": "所属小节：1.4 无穷小与无穷大  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 15
+        },
+        {
+          "title": "极限的四则运算法则（函数）",
+          "description": "所属小节：1.5 极限运算法则  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 16
+        },
+        {
+          "title": "复合函数的极限运算法则",
+          "description": "所属小节：1.5 极限运算法则  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 17
+        },
+        {
+          "title": "极限的夹逼准则",
+          "description": "所属小节：1.5 极限运算法则  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 18
+        },
+        {
+          "title": "夹逼准则与单调有界准则",
+          "description": "所属小节：1.6 极限存在准则 两个重要极限  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 19
+        },
+        {
+          "title": "第一个重要极限（sin x / x）",
+          "description": "所属小节：1.6 极限存在准则 两个重要极限  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 20
+        },
+        {
+          "title": "第二个重要极限（(1+1/x)^x）",
+          "description": "所属小节：1.6 极限存在准则 两个重要极限  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 21
+        },
+        {
+          "title": "重要极限的变形与推广",
+          "description": "所属小节：1.6 极限存在准则 两个重要极限  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 22
+        },
+        {
+          "title": "高阶、同阶、等价无穷小",
+          "description": "所属小节：1.7 无穷小的比较  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 23
+        },
+        {
+          "title": "等价无穷小替换定理",
+          "description": "所属小节：1.7 无穷小的比较  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 24
+        },
+        {
+          "title": "常见等价无穷小（sin x~x, tan x~x等）",
+          "description": "所属小节：1.7 无穷小的比较  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 25
+        },
+        {
+          "title": "函数在一点连续的定义",
+          "description": "所属小节：1.8 函数的连续性与间断点  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 26
+        },
+        {
+          "title": "左连续与右连续",
+          "description": "所属小节：1.8 函数的连续性与间断点  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 27
+        },
+        {
+          "title": "间断点的分类（第一类、第二类）",
+          "description": "所属小节：1.8 函数的连续性与间断点  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 28
+        },
+        {
+          "title": "连续函数的和、差、积、商及复合",
+          "description": "所属小节：1.8 函数的连续性与间断点  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 29
+        },
+        {
+          "title": "反函数与复合函数的连续性",
+          "description": "所属小节：1.9 连续函数的运算与初等函数的连续性  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 30
+        },
+        {
+          "title": "初等函数在其定义域内的连续性",
+          "description": "所属小节：1.9 连续函数的运算与初等函数的连续性  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 31
+        },
+        {
+          "title": "幂指函数的连续性",
+          "description": "所属小节：1.9 连续函数的运算与初等函数的连续性  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 32
+        },
+        {
+          "title": "最值定理与有界性定理",
+          "description": "所属小节：1.10 闭区间上连续函数的性质  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 33
+        },
+        {
+          "title": "零点定理（介值定理）",
+          "description": "所属小节：1.10 闭区间上连续函数的性质  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 34
+        },
+        {
+          "title": "一致连续性概念（简介）",
+          "description": "所属小节：1.10 闭区间上连续函数的性质  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 35
+        }
+      ]
+    },
+    {
+      "title": "第2章 导数与微分",
+      "chapter_number": 2,
+      "content": "",
+      "knowledge_points": [
+        {
+          "title": "导数的定义（极限形式）",
+          "description": "所属小节：2.1 导数概念  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 0
+        },
+        {
+          "title": "左导数与右导数",
+          "description": "所属小节：2.1 导数概念  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 1
+        },
+        {
+          "title": "导数的几何意义（切线斜率）",
+          "description": "所属小节：2.1 导数概念  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 2
+        },
+        {
+          "title": "可导与连续的关系",
+          "description": "所属小节：2.1 导数概念  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 3
+        },
+        {
+          "title": "基本初等函数的导数公式",
+          "description": "所属小节：2.2 函数的求导法则  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 4
+        },
+        {
+          "title": "导数的四则运算法则",
+          "description": "所属小节：2.2 函数的求导法则  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 5
+        },
+        {
+          "title": "反函数的求导法则",
+          "description": "所属小节：2.2 函数的求导法则  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 6
+        },
+        {
+          "title": "复合函数的求导法则（链式法则）",
+          "description": "所属小节：2.2 函数的求导法则  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 7
+        },
+        {
+          "title": "高阶导数的定义与计算",
+          "description": "所属小节：2.3 高阶导数  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 8
+        },
+        {
+          "title": "莱布尼茨公式",
+          "description": "所属小节：2.3 高阶导数  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 9
+        },
+        {
+          "title": "常见函数的高阶导数（指数、三角等）",
+          "description": "所属小节：2.3 高阶导数  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 10
+        },
+        {
+          "title": "隐函数的求导法",
+          "description": "所属小节：2.4 隐函数及由参数方程所确定的函数的导数  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 11
+        },
+        {
+          "title": "对数求导法",
+          "description": "所属小节：2.4 隐函数及由参数方程所确定的函数的导数  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 12
+        },
+        {
+          "title": "参数方程求导（一阶、二阶）",
+          "description": "所属小节：2.4 隐函数及由参数方程所确定的函数的导数  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 13
+        },
+        {
+          "title": "微分的定义与几何意义",
+          "description": "所属小节：2.5 函数的微分  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 14
+        },
+        {
+          "title": "微分公式与运算法则",
+          "description": "所属小节：2.5 函数的微分  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 15
+        },
+        {
+          "title": "微分在近似计算中的应用",
+          "description": "所属小节：2.5 函数的微分  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 16
+        }
+      ]
+    },
+    {
+      "title": "第3章 微分中值定理与导数的应用",
+      "chapter_number": 3,
+      "content": "",
+      "knowledge_points": [
+        {
+          "title": "罗尔定理",
+          "description": "所属小节：3.1 微分中值定理  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 0
+        },
+        {
+          "title": "拉格朗日中值定理",
+          "description": "所属小节：3.1 微分中值定理  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 1
+        },
+        {
+          "title": "柯西中值定理",
+          "description": "所属小节：3.1 微分中值定理  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 2
+        },
+        {
+          "title": "中值定理的几何意义与相互关系",
+          "description": "所属小节：3.1 微分中值定理  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 3
+        },
+        {
+          "title": "0/0型与∞/∞型未定式",
+          "description": "所属小节：3.2 洛必达法则  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 4
+        },
+        {
+          "title": "洛必达法则的使用条件与注意事项",
+          "description": "所属小节：3.2 洛必达法则  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 5
+        },
+        {
+          "title": "其他类型未定式（0·∞, ∞-∞, 1^∞等）的转化",
+          "description": "所属小节：3.2 洛必达法则  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 6
+        },
+        {
+          "title": "泰勒中值定理（带拉格朗日余项）",
+          "description": "所属小节：3.3 泰勒公式  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 7
+        },
+        {
+          "title": "麦克劳林公式",
+          "description": "所属小节：3.3 泰勒公式  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 8
+        },
+        {
+          "title": "常见函数的麦克劳林展开（e^x, sin x, cos x等）",
+          "description": "所属小节：3.3 泰勒公式  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 9
+        },
+        {
+          "title": "泰勒公式的应用（近似计算、误差估计）",
+          "description": "所属小节：3.3 泰勒公式  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 10
+        },
+        {
+          "title": "函数单调性的判定（导数符号）",
+          "description": "所属小节：3.4 函数的单调性与曲线的凹凸性  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 11
+        },
+        {
+          "title": "曲线的凹凸性定义与判定（二阶导数）",
+          "description": "所属小节：3.4 函数的单调性与曲线的凹凸性  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 12
+        },
+        {
+          "title": "拐点的求法",
+          "description": "所属小节：3.4 函数的单调性与曲线的凹凸性  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 13
+        },
+        {
+          "title": "极值的定义与必要条件（费马定理）",
+          "description": "所属小节：3.5 函数的极值与最大值最小值  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 14
+        },
+        {
+          "title": "极值的第一、第二充分条件",
+          "description": "所属小节：3.5 函数的极值与最大值最小值  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 15
+        },
+        {
+          "title": "闭区间上最值的求法",
+          "description": "所属小节：3.5 函数的极值与最大值最小值  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 16
+        },
+        {
+          "title": "实际问题的最值（优化）",
+          "description": "所属小节：3.5 函数的极值与最大值最小值  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 17
+        },
+        {
+          "title": "渐近线的求法（水平、垂直、斜）",
+          "description": "所属小节：3.6 函数图形的描绘  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 18
+        },
+        {
+          "title": "函数作图的一般步骤",
+          "description": "所属小节：3.6 函数图形的描绘  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 19
+        },
+        {
+          "title": "曲率的概念与计算公式",
+          "description": "所属小节：3.7 曲率  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 20
+        },
+        {
+          "title": "曲率半径与曲率圆",
+          "description": "所属小节：3.7 曲率  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 21
+        }
+      ]
+    },
+    {
+      "title": "第4章 不定积分",
+      "chapter_number": 4,
+      "content": "",
+      "knowledge_points": [
+        {
+          "title": "原函数与不定积分的定义",
+          "description": "所属小节：4.1 不定积分的概念与性质  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 0
+        },
+        {
+          "title": "基本积分表",
+          "description": "所属小节：4.1 不定积分的概念与性质  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 1
+        },
+        {
+          "title": "不定积分的线性性质",
+          "description": "所属小节：4.1 不定积分的概念与性质  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 2
+        },
+        {
+          "title": "第一类换元法（凑微分法）",
+          "description": "所属小节：4.2 换元积分法  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 3
+        },
+        {
+          "title": "第二类换元法（三角代换、根式代换等）",
+          "description": "所属小节：4.2 换元积分法  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 4
+        },
+        {
+          "title": "常见换元技巧",
+          "description": "所属小节：4.2 换元积分法  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 5
+        },
+        {
+          "title": "分部积分公式及选择u,dv的原则",
+          "description": "所属小节：4.3 分部积分法  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 6
+        },
+        {
+          "title": "分部积分法的应用（循环积分、递推）",
+          "description": "所属小节：4.3 分部积分法  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 7
+        },
+        {
+          "title": "有理函数的分解（部分分式）",
+          "description": "所属小节：4.4 有理函数的积分  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 8
+        },
+        {
+          "title": "可化为有理函数的积分（三角函数有理式、简单无理式）",
+          "description": "所属小节：4.4 有理函数的积分  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 9
+        }
+      ]
+    },
+    {
+      "title": "第5章 定积分",
+      "chapter_number": 5,
+      "content": "",
+      "knowledge_points": [
+        {
+          "title": "定积分的定义（黎曼和）",
+          "description": "所属小节：5.1 定积分的概念与性质  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 0
+        },
+        {
+          "title": "定积分的几何意义",
+          "description": "所属小节：5.1 定积分的概念与性质  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 1
+        },
+        {
+          "title": "定积分的性质（区间可加性、保号性、估值定理等）",
+          "description": "所属小节：5.1 定积分的概念与性质  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 2
+        },
+        {
+          "title": "积分中值定理",
+          "description": "所属小节：5.1 定积分的概念与性质  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 3
+        },
+        {
+          "title": "变上限积分及其导数（原函数存在定理）",
+          "description": "所属小节：5.2 微积分基本公式  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 4
+        },
+        {
+          "title": "牛顿-莱布尼茨公式",
+          "description": "所属小节：5.2 微积分基本公式  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 5
+        },
+        {
+          "title": "变上限积分求导的综合应用",
+          "description": "所属小节：5.2 微积分基本公式  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 6
+        },
+        {
+          "title": "定积分的换元法（注意换限）",
+          "description": "所属小节：5.3 定积分的换元法和分部积分法  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 7
+        },
+        {
+          "title": "定积分的分部积分法",
+          "description": "所属小节：5.3 定积分的换元法和分部积分法  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 8
+        },
+        {
+          "title": "奇偶函数在对称区间上的积分",
+          "description": "所属小节：5.3 定积分的换元法和分部积分法  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 9
+        },
+        {
+          "title": "无穷限反常积分（收敛与发散）",
+          "description": "所属小节：5.4 反常积分  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 10
+        },
+        {
+          "title": "无界函数的反常积分（瑕积分）",
+          "description": "所属小节：5.4 反常积分  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 11
+        },
+        {
+          "title": "反常积分的比较判别法",
+          "description": "所属小节：5.4 反常积分  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 12
+        }
+      ]
+    },
+    {
+      "title": "第6章 定积分的应用",
+      "chapter_number": 6,
+      "content": "",
+      "knowledge_points": [
+        {
+          "title": "元素法（微元法）的基本思想",
+          "description": "所属小节：6.1 定积分的元素法  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 0
+        },
+        {
+          "title": "平面图形的面积（直角坐标、极坐标）",
+          "description": "所属小节：6.2 定积分在几何学上的应用  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 1
+        },
+        {
+          "title": "旋转体的体积（绕轴旋转）",
+          "description": "所属小节：6.2 定积分在几何学上的应用  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 2
+        },
+        {
+          "title": "平行截面面积为已知的立体体积",
+          "description": "所属小节：6.2 定积分在几何学上的应用  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 3
+        },
+        {
+          "title": "平面曲线的弧长（直角、参数、极坐标）",
+          "description": "所属小节：6.2 定积分在几何学上的应用  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 4
+        },
+        {
+          "title": "变力沿直线做功",
+          "description": "所属小节：6.3 定积分在物理学上的应用  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 5
+        },
+        {
+          "title": "液体侧压力",
+          "description": "所属小节：6.3 定积分在物理学上的应用  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 6
+        },
+        {
+          "title": "引力（细杆对质点的引力）",
+          "description": "所属小节：6.3 定积分在物理学上的应用  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 7
+        }
+      ]
+    },
+    {
+      "title": "第7章 微分方程",
+      "chapter_number": 7,
+      "content": "",
+      "knowledge_points": [
+        {
+          "title": "微分方程的定义、阶、解、通解、特解",
+          "description": "所属小节：7.1 微分方程的基本概念  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 0
+        },
+        {
+          "title": "初始条件与初值问题",
+          "description": "所属小节：7.1 微分方程的基本概念  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 1
+        },
+        {
+          "title": "可分离变量方程的形式与解法",
+          "description": "所属小节：7.2 可分离变量的微分方程  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 2
+        },
+        {
+          "title": "齐次方程（可化为可分离变量）",
+          "description": "所属小节：7.2 可分离变量的微分方程  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 3
+        },
+        {
+          "title": "一阶齐次线性方程",
+          "description": "所属小节：7.3 一阶线性微分方程  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 4
+        },
+        {
+          "title": "一阶非齐次线性方程（常数变易法）",
+          "description": "所属小节：7.3 一阶线性微分方程  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 5
+        },
+        {
+          "title": "伯努利方程",
+          "description": "所属小节：7.3 一阶线性微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 6
+        },
+        {
+          "title": "y^(n)=f(x)型",
+          "description": "所属小节：7.4 可降阶的高阶微分方程  难度：简单",
+          "importance": 2,
+          "estimated_minutes": 8,
+          "order_index": 7
+        },
+        {
+          "title": "y''=f(x,y')型（不显含y）",
+          "description": "所属小节：7.4 可降阶的高阶微分方程  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 8
+        },
+        {
+          "title": "y''=f(y,y')型（不显含x）",
+          "description": "所属小节：7.4 可降阶的高阶微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 9
+        },
+        {
+          "title": "线性微分方程解的结构（叠加原理）",
+          "description": "所属小节：7.5 高阶线性微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 10
+        },
+        {
+          "title": "常数变易法（高阶）",
+          "description": "所属小节：7.5 高阶线性微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 11
+        },
+        {
+          "title": "特征方程与特征根",
+          "description": "所属小节：7.6 常系数齐次线性微分方程  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 12
+        },
+        {
+          "title": "二阶常系数齐次通解（实根、复根）",
+          "description": "所属小节：7.6 常系数齐次线性微分方程  难度：中等",
+          "importance": 3,
+          "estimated_minutes": 12,
+          "order_index": 13
+        },
+        {
+          "title": "高阶常系数齐次的通解",
+          "description": "所属小节：7.6 常系数齐次线性微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 14
+        },
+        {
+          "title": "待定系数法（f(x)=e^(λx)P_m(x)型）",
+          "description": "所属小节：7.7 常系数非齐次线性微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 15
+        },
+        {
+          "title": "待定系数法（f(x)=e^(λx)(P_l(x)cos ωx+Q_n(x)sin ωx)型）",
+          "description": "所属小节：7.7 常系数非齐次线性微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 16
+        },
+        {
+          "title": "自由项为其他形式（叠加原理）",
+          "description": "所属小节：7.7 常系数非齐次线性微分方程  难度：较难",
+          "importance": 4,
+          "estimated_minutes": 16,
+          "order_index": 17
+        }
+      ]
+    }
+  ]
+}

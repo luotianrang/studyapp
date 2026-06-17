@@ -1,0 +1,94 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学习助手</title>
+    <link rel="stylesheet" href="css/style.css?v=11">
+    <link rel="stylesheet" href="css/admin.css?v=10">
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <h1><span class="logo-icon">📘</span> 学习助手</h1>
+        <div class="subtitle">StudyAssistant</div>
+    </div>
+    <div class="nav-section">导航</div>
+    <a class="nav-item active" data-route="my-learning" onclick="router.go('my-learning')">
+        <span class="nav-icon">📖</span> 我的学习
+        <span class="badge" id="book-count-badge">0</span>
+    </a>
+    <a class="nav-item" data-route="library" onclick="router.go('library')">
+        <span class="nav-icon">📚</span> 书库
+    </a>
+    <a class="nav-item" data-route="plans" onclick="router.go('plans')">
+        <span class="nav-icon">📅</span> 学习计划
+    </a>
+    <a class="nav-item" data-route="settings" onclick="router.go('settings')">
+        <span class="nav-icon">⚙️</span> 设置
+    </a>
+    <a class="nav-item" data-route="admin" onclick="router.go('admin')">
+        <span class="nav-icon">🛠️</span> 管理
+    </a>
+        <div class="sidebar-user" id="sidebarUser" style="display:none">
+        <div class="sidebar-user-info">
+            <span class="sidebar-user-icon">👤</span>
+            <span class="sidebar-username" id="usernameDisplay">用户</span>
+        </div>
+        <button class="sidebar-logout-btn" onclick="api.logout()" title="退出登录">🚪</button>
+    </div>
+<div class="sidebar-footer">学习助手 v1.0</div>
+</aside>
+
+<!-- MAIN -->
+<div class="main" id="main">
+    <div class="main-header">
+        <div>
+            <h2 id="page-title">我的学习</h2>
+            <div class="page-subtitle" id="page-subtitle">你已加入的学习书籍</div>
+        </div>
+        <div id="header-actions"></div>
+    </div>
+    <div class="main-content" id="page-content">
+        <!-- Content rendered by JS -->
+    </div>
+</div>
+</div>
+
+
+
+<div id="loginOverlay" style="display:none">
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="login-icon">📘</div>
+                <h1>学习助手</h1>
+                <p class="login-subtitle">StudyAssistant</p>
+            </div>
+            <div id="loginFormContainer"></div>
+            </div>
+        </div>
+    </div>
+
+<script src="js/api.js?v=10"></script>
+<script src="js/router.js?v=10"></script>
+<script src="js/views/library.js?v=10"></script>
+<script src="js/views/my-learning.js?v=10"></script>
+<script src="js/views/book-detail.js?v=10"></script>
+<script src="js/views/plan.js?v=10"></script>
+<script src="js/views/settings.js?v=10"></script>
+<script src="js/views/admin.js?v=10"></script>
+<script src="js/views/login.v4.js"></script>
+<script src="js/app.v5.js"></script>
+
+</body>
+
+
+
+
+

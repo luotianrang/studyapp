@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlalchemy
+PyMuPDF
+openai
+python-multipart
+python-jose[cryptography]
+bcrypt

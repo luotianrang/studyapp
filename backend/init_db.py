@@ -1,0 +1,1 @@
+﻿import sys; import os; sys.path.append('.'); from config import DATABASE_URL; from sqlalchemy import create_engine; from models import Base; engine = create_engine(DATABASE_URL, connect_args={'check_same_thread': False}); Base.metadata.create_all(bind=engine); print('数据库初始化完成')

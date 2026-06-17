@@ -1,0 +1,15 @@
+services:
+  studyapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: studyapp
+    restart: unless-stopped
+    ports:
+      - "8899:8899"
+    environment:
+      DATABASE_URL: sqlite:////app/data/studyapp.db
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
