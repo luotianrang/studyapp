@@ -24,6 +24,7 @@ class Book(Base):
     current_chapter = Column(Integer, default=0)
     status = Column(String(20), default='uploaded')
     error_message = Column(String(500), default="")
+    analysis_result = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     chapters = relationship("Chapter", back_populates="book", cascade="all, delete-orphan")
@@ -38,6 +39,7 @@ class Chapter(Base):
     chapter_number = Column(Integer, default=0)
     content = Column(Text, default="")
     status = Column(String(20), default="pending")
+    analysis_result = Column(Text, default="")
 
     book = relationship("Book", back_populates="chapters")
     knowledge_points = relationship("KnowledgePoint", back_populates="chapter", cascade="all, delete-orphan")

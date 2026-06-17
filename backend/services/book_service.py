@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy.orm import Session
 
 from ..core.logger import get_logger
@@ -5,6 +7,16 @@ from ..models import Book, Chapter, KnowledgePoint, UserBook
 from ..schemas import BookResponse, ChapterResponse
 
 logger = get_logger(__name__)
+
+
+def _load_json(raw: str | None):
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Invalid analysis_result JSON encountered")
+        return None
 
 
 def _book_response(book: Book) -> BookResponse:
@@ -15,6 +27,7 @@ def _book_response(book: Book) -> BookResponse:
         author=book.author,
         total_chapters=book.total_chapters,
         status=book.status,
+        analysis_result=_load_json(book.analysis_result),
         created_at=book.created_at,
     )
 
@@ -75,6 +88,8 @@ def list_book_chapters(db: Session, book_id: int) -> list[ChapterResponse]:
                 chapter_number=chapter.chapter_number,
                 status=chapter.status,
                 knowledge_point_count=kp_count,
+                content=chapter.content or "",
+                analysis_result=_load_json(chapter.analysis_result),
             )
         )
     return result

@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy.orm import Session
 
 from ..core.logger import get_logger
@@ -13,8 +15,19 @@ from ..schemas import (
     KnowledgePointCreateRequest,
     KnowledgePointUpdateRequest,
 )
+from .local_ai_analyzer import analyze_content, summarize_book
 
 logger = get_logger(__name__)
+
+
+def _load_json(raw: str | None):
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Invalid analysis_result JSON encountered")
+        return None
 
 
 def _book_response(book: Book) -> BookResponse:
@@ -25,6 +38,7 @@ def _book_response(book: Book) -> BookResponse:
         author=book.author,
         total_chapters=book.total_chapters,
         status=book.status,
+        analysis_result=_load_json(book.analysis_result),
         created_at=book.created_at,
     )
 
@@ -38,7 +52,49 @@ def _chapter_response(db: Session, chapter: Chapter) -> ChapterResponse:
         chapter_number=chapter.chapter_number,
         status=chapter.status,
         knowledge_point_count=kp_count,
+        content=chapter.content or "",
+        analysis_result=_load_json(chapter.analysis_result),
     )
+
+
+def _apply_analysis_to_chapter(db: Session, chapter: Chapter) -> dict:
+    analysis = analyze_content(chapter.title, chapter.content or "")
+    chapter.analysis_result = json.dumps(analysis, ensure_ascii=False)
+    chapter.status = "analyzed" if analysis.get("knowledge_points") else "pending"
+
+    db.query(KnowledgePoint).filter(KnowledgePoint.chapter_id == chapter.id).delete()
+    for kp in analysis.get("knowledge_points", []):
+        db.add(
+            KnowledgePoint(
+                chapter_id=chapter.id,
+                title=kp.get("title", "未命名知识点"),
+                description=kp.get("description", ""),
+                importance=kp.get("importance", 3),
+                estimated_minutes=kp.get("estimated_minutes", 10),
+                order_index=kp.get("order_index", 0),
+            )
+        )
+    return analysis
+
+
+def _refresh_book_analysis(db: Session, book: Book) -> None:
+    chapters = db.query(Chapter).filter(Chapter.book_id == book.id).order_by(Chapter.chapter_number).all()
+    chapter_summaries = []
+    analyzed_count = 0
+    for chapter in chapters:
+        analysis = _load_json(chapter.analysis_result) or {}
+        chapter_summaries.append(
+            {
+                "title": chapter.title,
+                "content": chapter.content or "",
+                "knowledge_points": analysis.get("knowledge_points", []),
+            }
+        )
+        if chapter.status == "analyzed":
+            analyzed_count += 1
+    book.total_chapters = len(chapters)
+    book.analysis_result = json.dumps(summarize_book(book.title, chapter_summaries), ensure_ascii=False)
+    book.status = "analyzed" if chapters and analyzed_count == len(chapters) else "uploaded"
 
 
 def list_admin_books(db: Session) -> list[BookResponse]:
@@ -47,7 +103,7 @@ def list_admin_books(db: Session) -> list[BookResponse]:
 
 
 def create_book(db: Session, req: BookCreateRequest) -> BookResponse:
-    book = Book(title=req.title, author=req.author, is_preset=True)
+    book = Book(title=req.title, author=req.author, is_preset=True, analysis_result="")
     db.add(book)
     db.commit()
     db.refresh(book)
@@ -88,12 +144,13 @@ def create_chapter(db: Session, book_id: int, req: ChapterCreateRequest) -> Chap
     book = db.query(Book).filter(Book.id == book_id, Book.is_preset == True).first()
     if not book:
         raise LookupError("Book not found")
-    chapter = Chapter(book_id=book_id, title=req.title, chapter_number=req.chapter_number, content=req.content)
+    chapter = Chapter(book_id=book_id, title=req.title, chapter_number=req.chapter_number, content=req.content, status="analyzing")
     db.add(chapter)
+    db.flush()
+    _apply_analysis_to_chapter(db, chapter)
+    _refresh_book_analysis(db, book)
     db.commit()
     db.refresh(chapter)
-    book.total_chapters = db.query(Chapter).filter(Chapter.book_id == book_id).count()
-    db.commit()
     return _chapter_response(db, chapter)
 
 
@@ -107,6 +164,11 @@ def update_chapter(db: Session, chapter_id: int, req: ChapterUpdateRequest) -> C
         chapter.chapter_number = req.chapter_number
     if req.content is not None:
         chapter.content = req.content
+    chapter.status = "analyzing"
+    _apply_analysis_to_chapter(db, chapter)
+    book = db.query(Book).filter(Book.id == chapter.book_id).first()
+    if book:
+        _refresh_book_analysis(db, book)
     db.commit()
     db.refresh(chapter)
     return _chapter_response(db, chapter)
@@ -120,7 +182,7 @@ def delete_chapter(db: Session, chapter_id: int) -> dict:
     db.delete(chapter)
     book = db.query(Book).filter(Book.id == book_id).first()
     if book:
-        book.total_chapters = db.query(Chapter).filter(Chapter.book_id == book_id).count()
+        _refresh_book_analysis(db, book)
     db.commit()
     return {"message": "Chapter deleted"}
 
@@ -189,32 +251,22 @@ def bulk_import(db: Session, book_id: int, req: BulkImportRequest) -> dict:
             title=chapter_data.title,
             chapter_number=chapter_data.chapter_number,
             content=chapter_data.content,
-            status="pending",
+            status="analyzing",
         )
         db.add(chapter)
         db.flush()
-        for kp_data in chapter_data.knowledge_points:
-            db.add(
-                KnowledgePoint(
-                    chapter_id=chapter.id,
-                    title=kp_data.title,
-                    description=kp_data.description,
-                    importance=kp_data.importance,
-                    estimated_minutes=kp_data.estimated_minutes,
-                    order_index=kp_data.order_index,
-                )
-            )
+        analysis = _apply_analysis_to_chapter(db, chapter)
         created.append(
             {
                 "id": chapter.id,
                 "title": chapter.title,
                 "chapter_number": chapter.chapter_number,
-                "knowledge_points_count": len(chapter_data.knowledge_points),
+                "knowledge_points_count": len(analysis.get("knowledge_points", [])),
             }
         )
-    book.total_chapters = db.query(Chapter).filter(Chapter.book_id == book_id).count()
+    _refresh_book_analysis(db, book)
     db.commit()
     return {
-        "message": f"成功导入 {len(created)} 个章节，共 {sum(item['knowledge_points_count'] for item in created)} 个知识点",
+        "message": f"成功导入 {len(created)} 个章节，并自动生成 {sum(item['knowledge_points_count'] for item in created)} 个知识点",
         "chapters": created,
     }

@@ -20,7 +20,7 @@ router.register("book-detail", async (bookId) => {
                         <div><span class="text-secondary">📑 </span>${book.total_chapters || 0} 章</div>
                         <div><span class="text-secondary">📌 </span><span class="badge badge-${book.status}">${book.status}</span></div>
                     </div>
-                    ${book.status === "uploaded" || book.status === "error" ? `<button class="btn btn-success btn-sm mt-16" onclick="startAnalysis(${book.id},this)">🔍 开始分析</button>` : ""}
+                    <div class="text-secondary mt-16">已自动生成分析结果，前端不再触发 AI 分析。</div>
                 </div>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:16px">

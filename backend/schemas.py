@@ -1,5 +1,5 @@
 ﻿from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime, time
 
 class BookCreateRequest(BaseModel):
@@ -67,6 +67,7 @@ class BookResponse(BaseModel):
     author: str
     total_chapters: int
     status: str
+    analysis_result: Optional[Dict[str, Any]] = None
     created_at: datetime
 
     class Config:
@@ -79,6 +80,8 @@ class ChapterResponse(BaseModel):
     chapter_number: int
     status: str
     knowledge_point_count: int = 0
+    content: str = ""
+    analysis_result: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True

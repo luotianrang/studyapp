@@ -28,6 +28,8 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _add_column_if_missing("study_plans", "user_id", "INTEGER NOT NULL DEFAULT 1")
     _add_column_if_missing("notification_settings", "user_id", "INTEGER NOT NULL DEFAULT 1")
+    _add_column_if_missing("books", "analysis_result", "TEXT DEFAULT ''")
+    _add_column_if_missing("chapters", "analysis_result", "TEXT DEFAULT ''")
 
 
 def _column_exists(table: str, column: str) -> bool:

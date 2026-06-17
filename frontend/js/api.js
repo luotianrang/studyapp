@@ -75,11 +75,6 @@ const api = {
     getNotificationSettings() { return this.request("GET", "/notifications/settings"); },
     updateNotificationSettings(s) { return this.request("PUT", "/notifications/settings", s); },
 
-    // Config
-    setDeepSeekConfig(apiKey, model) {
-        return this.request("POST", "/config/deepseek", { api_key: apiKey, model: model });
-    },
-
     // ===== Auth =====
     login(username, password) {
         return this.request("POST", "/auth/login", { username, password });
