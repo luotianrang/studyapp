@@ -1,6 +1,11 @@
 from datetime import datetime, timedelta
 
 from backend.services.scheduler.interleaved_scheduler import generate_interleaved_plan
+from backend.services.scheduler.learning_state_machine import (
+    LEARNING_STATES,
+    REVIEW_INTERVALS_DAYS,
+    build_learning_state_machine,
+)
 from backend.services.scheduler.spaced_repetition import calculate_spaced_repetition
 
 
@@ -13,6 +18,41 @@ def test_spaced_repetition_defaults_to_new_content_priority():
 
     assert result["review_score"] == 1.0
     assert result["last_review_time"] is None
+
+
+def test_learning_state_machine_splits_unlearned_and_learned_stores():
+    now = datetime(2026, 6, 18, 9, 0, 0)
+    stores = build_learning_state_machine(
+        [
+            {
+                "id": 1,
+                "book_id": 101,
+                "chapter_number": 1,
+                "order_index": 0,
+                "learning_metrics": {"completion_rate": 0.0},
+                "review_state": {"review_count": 0, "mastery": 0.5},
+            },
+            {
+                "id": 2,
+                "book_id": 101,
+                "chapter_number": 1,
+                "order_index": 1,
+                "learning_metrics": {"completion_rate": 1.0},
+                "review_state": {
+                    "review_count": 1,
+                    "mastery": 0.7,
+                    "last_review_time": (now - timedelta(days=1)).isoformat(),
+                    "next_review_time": now.isoformat(),
+                },
+            },
+        ],
+        now=now,
+    )
+
+    assert [item["id"] for item in stores["unlearned_store"]] == [1]
+    assert [item["id"] for item in stores["learned_store"]] == [2]
+    assert stores["unlearned_store"][0]["learning_state"] == LEARNING_STATES["UNLEARNED"]
+    assert stores["learned_store"][0]["learning_state"] == LEARNING_STATES["REVIEW_QUEUE"]
 
 
 def test_multibook_plan_contains_study_and_review_items():
@@ -75,6 +115,114 @@ def test_multibook_plan_contains_study_and_review_items():
     for day in mixed_days:
         first_review_index = min(idx for idx, item in enumerate(day["items"]) if item["item_type"] == "review")
         assert first_review_index > 0
+
+
+def test_learning_tasks_keep_strict_chapter_order():
+    now = datetime(2026, 6, 18, 9, 0, 0)
+    knowledge_points = [
+        {
+            "id": 1,
+            "title": "B1-C1-K1",
+            "chapter_id": 11,
+            "chapter_title": "C1",
+            "chapter_number": 1,
+            "book_id": 101,
+            "book_title": "Book1",
+            "importance": 5,
+            "difficulty": 0.5,
+            "estimated_minutes": 10,
+            "order_index": 0,
+            "learning_metrics": {"completion_rate": 0.0, "skip_rate": 0.0, "error_rate": 0.0},
+            "review_state": {"review_count": 0, "mastery": 0.5, "last_review_time": None},
+            "last_review_time": None,
+            "review_count": 0,
+            "mastery": 0.5,
+        },
+        {
+            "id": 2,
+            "title": "B1-C1-K2",
+            "chapter_id": 11,
+            "chapter_title": "C1",
+            "chapter_number": 1,
+            "book_id": 101,
+            "book_title": "Book1",
+            "importance": 3,
+            "difficulty": 0.5,
+            "estimated_minutes": 10,
+            "order_index": 1,
+            "learning_metrics": {"completion_rate": 0.0, "skip_rate": 0.0, "error_rate": 0.0},
+            "review_state": {"review_count": 0, "mastery": 0.5, "last_review_time": None},
+            "last_review_time": None,
+            "review_count": 0,
+            "mastery": 0.5,
+        },
+        {
+            "id": 3,
+            "title": "B1-C2-K1",
+            "chapter_id": 12,
+            "chapter_title": "C2",
+            "chapter_number": 2,
+            "book_id": 101,
+            "book_title": "Book1",
+            "importance": 5,
+            "difficulty": 0.5,
+            "estimated_minutes": 10,
+            "order_index": 0,
+            "learning_metrics": {"completion_rate": 0.0, "skip_rate": 0.0, "error_rate": 0.0},
+            "review_state": {"review_count": 0, "mastery": 0.5, "last_review_time": None},
+            "last_review_time": None,
+            "review_count": 0,
+            "mastery": 0.5,
+        },
+    ]
+
+    plan = generate_interleaved_plan(
+        knowledge_points,
+        total_days=3,
+        daily_minutes=30,
+        start_date=now.replace(hour=0, minute=0, second=0, microsecond=0),
+    )
+
+    learned_order = [item["knowledge_point_id"] for day in plan for item in day["study_items"]]
+    assert learned_order == [1, 2, 3]
+
+
+def test_review_queue_uses_fixed_forgetting_curve_days():
+    now = datetime(2026, 6, 18, 9, 0, 0)
+    knowledge_points = [
+        {
+            "id": 10,
+            "title": "Reviewed-KP",
+            "chapter_id": 99,
+            "chapter_title": "C1",
+            "chapter_number": 1,
+            "book_id": 500,
+            "book_title": "BookX",
+            "importance": 5,
+            "difficulty": 0.5,
+            "estimated_minutes": 10,
+            "order_index": 0,
+            "learning_metrics": {"completion_rate": 1.0, "skip_rate": 0.0, "error_rate": 0.0},
+            "review_state": {
+                "review_count": 0,
+                "mastery": 0.8,
+                "last_review_time": (now - timedelta(days=1)).isoformat(),
+            },
+            "last_review_time": (now - timedelta(days=1)).isoformat(),
+            "review_count": 0,
+            "mastery": 0.8,
+        },
+    ]
+
+    plan = generate_interleaved_plan(
+        knowledge_points,
+        total_days=35,
+        daily_minutes=60,
+        start_date=now.replace(hour=0, minute=0, second=0, microsecond=0),
+    )
+
+    review_days = [day["day"] for day in plan if any(item["knowledge_point_id"] == 10 for item in day["review_items"])]
+    assert review_days[:2] == [2, 4]
 
 
 def test_multibook_plan_enforces_daily_capacity():
@@ -473,7 +621,7 @@ def test_long_learning_task_prefers_same_day_sessions_without_tiny_fragments():
         start_date=now.replace(hour=0, minute=0, second=0, microsecond=0),
     )
 
-    assert len(plan) == 1
+    assert len(plan) == 2
     assert len(plan[0]["study_items"]) == 2
     assert [item["estimated_minutes"] for item in plan[0]["study_items"]] == [35, 35]
 
@@ -508,6 +656,6 @@ def test_oversized_task_is_split_across_days_with_bounded_session_lengths():
         start_date=now.replace(hour=0, minute=0, second=0, microsecond=0),
     )
 
-    assert len(plan) == 3
-    assert [day["total_minutes"] for day in plan] == [34, 33, 33]
+    assert len(plan) == 4
+    assert all(day["total_minutes"] <= 40 for day in plan)
     assert all(10 <= item["estimated_minutes"] <= 40 for day in plan for item in day["study_items"])

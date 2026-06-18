@@ -91,3 +91,11 @@
 - [x] Switched plan generation semantics from user-selected days to system-derived `recommended_days` / `final_days`.
 - [x] Preserved interleaved scheduler, spaced repetition, review protection, and capacity-aware day allocation.
 - [ ] Consider exposing `recommended_days` and `explanation` directly in `PlanResponse` for frontend display.
+
+## 2026-06-19 Update (UTF-8 Append)
+- [x] Added a learning state machine layer without changing the public API or scheduler entrypoints.
+- [x] Split scheduler task preparation into ordered `unlearned_store` and review-oriented `learned_store`.
+- [x] Enforced strict chapter-order learning progression for new learning tasks.
+- [x] Switched review generation to deterministic forgetting-curve anchors (`1/3/7/14/30` days) with same-day learning/review mixing preserved.
+- [x] Added regression tests covering state-machine stores, chapter-order progression, deterministic review anchors, and mixed daily plans.
+- [ ] Expose learning-state or review-anchor metadata to the frontend only if a later UI iteration needs it; keep the current API unchanged for now.

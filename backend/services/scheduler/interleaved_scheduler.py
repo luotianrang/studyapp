@@ -7,6 +7,11 @@ from math import ceil
 from ..review_scheduler import get_review_minutes
 from .adaptive_scheduler import calculate_adaptive_priority
 from .attention_model import calculate_attention_score
+from .learning_state_machine import (
+    LEARNING_STATES,
+    build_learning_state_machine,
+    get_review_intervals_for_task,
+)
 from .planning_layer import build_planning_context
 from .spaced_repetition import calculate_spaced_repetition
 
@@ -192,21 +197,11 @@ def _build_learning_score(task: dict, total_days: int) -> tuple[float, dict, dic
 
 
 def _should_create_study_item(task: dict) -> bool:
-    learning_metrics = dict(task.get("learning_metrics") or {})
-    completion_rate = float(learning_metrics.get("completion_rate", 0.0) or 0.0)
-    mastery = float(task.get("mastery", 0.5) or 0.5)
-    review_count = int(task.get("review_count", 0) or 0)
-    return completion_rate < 1.0 or (review_count == 0 and mastery < 0.95)
+    return task.get("learning_state") in {LEARNING_STATES["UNLEARNED"], LEARNING_STATES["LEARNING"]}
 
 
 def _should_create_review_item(task: dict) -> bool:
-    planned_review_count = int(task.get("planned_review_count", 0) or 0)
-    if planned_review_count > 0:
-        return True
-    review_count = int(task.get("review_count", 0) or 0)
-    last_review_time = task.get("last_review_time")
-    mastery = float(task.get("mastery", 0.5) or 0.5)
-    return review_count > 0 or last_review_time is not None or mastery < 0.6
+    return task.get("learning_state") in {LEARNING_STATES["LEARNED"], LEARNING_STATES["REVIEW_QUEUE"]}
 
 
 def _build_task_variant(task: dict, item_type: str, total_days: int, now: datetime) -> dict:
@@ -235,43 +230,72 @@ def _build_task_variant(task: dict, item_type: str, total_days: int, now: dateti
         if next_review_time is not None:
             review_anchor_day = max(1, min(total_days, (next_review_time.date() - now.date()).days + 1))
         else:
-            review_anchor_day = 1
+            review_anchor_day = max(1, int(variant.get("review_anchor_day", 1) or 1))
         variant["review_anchor_day"] = review_anchor_day
+    else:
+        variant["learning_state"] = LEARNING_STATES["LEARNING"]
     return variant
 
 
 def build_interleaved_tasks(knowledge_points: list[dict], total_days: int) -> list[dict]:
     tasks = []
     now = datetime.now()
+    state_machine = build_learning_state_machine(knowledge_points, now=now)
 
-    for kp in knowledge_points:
+    for kp in state_machine["unlearned_store"]:
         base_task = dict(kp)
         base_task["book_id"] = kp.get("book_id", 0)
+        base_task["learning_state"] = LEARNING_STATES["UNLEARNED"]
 
         review_snapshot = calculate_spaced_repetition(base_task, review_state=base_task.get("review_state"), now=now)
         base_task.update(review_snapshot)
 
         if _should_create_study_item(base_task):
             tasks.append(_build_task_variant(base_task, "learning", total_days, now))
-        if _should_create_review_item(base_task):
-            planned_review_count = max(1, int(base_task.get("planned_review_count", 1) or 1))
-            for review_index in range(planned_review_count):
+            review_days = get_review_intervals_for_task(base_task, total_days, learning_day=1)
+            for review_index, review_day in enumerate(review_days):
                 review_task = _build_task_variant(base_task, "review", total_days, now)
-                base_anchor = review_task.get("review_anchor_day", 1)
-                review_task["review_anchor_day"] = min(total_days, max(base_anchor, review_index + 1))
+                review_task["review_anchor_day"] = min(total_days, max(1, review_day))
+                review_task["score"] = round(review_task["score"] - review_index * 0.01, 4)
+                review_task["final_score"] = round(review_task["final_score"] - review_index * 0.01, 4)
+                review_task["learning_state"] = LEARNING_STATES["REVIEW_QUEUE"]
+                tasks.append(review_task)
+
+    for kp in state_machine["learned_store"]:
+        base_task = dict(kp)
+        base_task["book_id"] = kp.get("book_id", 0)
+        base_task["learning_state"] = kp.get("learning_state", LEARNING_STATES["LEARNED"])
+
+        review_snapshot = calculate_spaced_repetition(base_task, review_state=base_task.get("review_state"), now=now)
+        base_task.update(review_snapshot)
+
+        if _should_create_review_item(base_task):
+            review_days = get_review_intervals_for_task(base_task, total_days, learning_day=1)
+            if not review_days and base_task.get("learning_state") == LEARNING_STATES["REVIEW_QUEUE"]:
+                review_days = [1]
+            elif base_task.get("learning_state") == LEARNING_STATES["REVIEW_QUEUE"]:
+                review_days = [1]
+            for review_index, review_day in enumerate(review_days):
+                review_task = _build_task_variant(base_task, "review", total_days, now)
+                review_task["review_anchor_day"] = min(total_days, max(1, review_day))
                 review_task["score"] = round(review_task["score"] - review_index * 0.01, 4)
                 review_task["final_score"] = round(review_task["final_score"] - review_index * 0.01, 4)
                 tasks.append(review_task)
 
     tasks.sort(
         key=lambda item: (
-            -item["score"],
             0 if item.get("item_type") == "review" else 1,
-            -item.get("review_score", 0),
-            -item.get("learning_score", 0),
-            item.get("book_id", 0),
-            item.get("chapter_number", 0),
-            item.get("order_index", 0),
+            item.get(
+                "sequence_key",
+                (
+                    item.get("book_id", 0),
+                    item.get("chapter_number", 0),
+                    item.get("order_index", 0),
+                    item.get("id", 0),
+                ),
+            ),
+            item.get("review_anchor_day", 10**6),
+            -item["score"],
         )
     )
     return tasks
@@ -410,24 +434,58 @@ def _select_learning_task_for_day(
         (item.get("knowledge_point_id", 0), item.get("item_type", "learning"))
         for item in day_items
     }
+    earliest_learning_sequence = None
+    earliest_chapter_key = None
+
+    for task in remaining_tasks:
+        if _is_review_task(task):
+            continue
+        sequence_key = task.get(
+            "sequence_key",
+            (
+                task.get("book_id", 0),
+                task.get("chapter_number", 0),
+                task.get("order_index", 0),
+                task.get("id", 0),
+            ),
+        )
+        chapter_key = task.get(
+            "chapter_key",
+            (
+                task.get("book_id", 0),
+                task.get("chapter_number", 0),
+            ),
+        )
+        if earliest_learning_sequence is None or sequence_key < earliest_learning_sequence:
+            earliest_learning_sequence = sequence_key
+            earliest_chapter_key = chapter_key
+
+    if earliest_learning_sequence is None:
+        return None
 
     for idx, task in enumerate(remaining_tasks):
         if _is_review_task(task):
+            continue
+        if task.get("sequence_key", earliest_learning_sequence) != earliest_learning_sequence:
             continue
         if task.get("session_task_key") in existing_task_keys and _fits_within_day(task, remaining_capacity):
             return idx
 
     candidate_sets = (
         lambda task: (
-            _fits_within_day(task, remaining_capacity)
+            task.get("sequence_key", earliest_learning_sequence) == earliest_learning_sequence
+            and task.get("chapter_key", earliest_chapter_key) == earliest_chapter_key
+            and _fits_within_day(task, remaining_capacity)
             and (task.get("item_type") == "review" or book_task_counts[task.get("book_id", 0)] < 2)
             and (task.get("item_type") == "review" or last_book_id is None or task.get("book_id", 0) != last_book_id)
         ),
         lambda task: (
-            _fits_within_day(task, remaining_capacity)
+            task.get("sequence_key", earliest_learning_sequence) == earliest_learning_sequence
+            and task.get("chapter_key", earliest_chapter_key) == earliest_chapter_key
+            and _fits_within_day(task, remaining_capacity)
             and (task.get("item_type") == "review" or book_task_counts[task.get("book_id", 0)] < 2)
         ),
-        lambda task: _fits_within_day(task, remaining_capacity),
+        lambda task: task.get("sequence_key", earliest_learning_sequence) == earliest_learning_sequence and _fits_within_day(task, remaining_capacity),
     )
 
     for rule in candidate_sets:
@@ -441,7 +499,7 @@ def _select_learning_task_for_day(
         for idx, task in enumerate(remaining_tasks):
             if _is_review_task(task):
                 continue
-            if _fits_within_day(task, remaining_capacity):
+            if task.get("sequence_key", earliest_learning_sequence) == earliest_learning_sequence and _fits_within_day(task, remaining_capacity):
                 return idx
 
     return None
@@ -453,8 +511,14 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
     if not knowledge_points or total_days <= 0 or daily_minutes <= 0:
         return []
 
+    requested_horizon = total_days
     planning_context = build_planning_context(knowledge_points, total_days, daily_minutes)
-    total_days = planning_context["final_days"]
+    total_days = max(requested_horizon, int(planning_context.get("final_days", requested_horizon) or requested_horizon))
+    planning_context["final_days"] = total_days
+    planning_context["recommended_days"] = max(
+        int(planning_context.get("recommended_days", total_days) or total_days),
+        total_days,
+    )
     daily_capacity = _resolve_daily_capacity(planning_context["daily_capacity"])
     task_pool = build_scheduler_pipeline(planning_context["planned_tasks"], total_days, daily_capacity)
     daily_plan = []
@@ -675,7 +739,7 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
                 daily_capacity=daily_capacity,
                 day_number=day_number,
                 forced_only=False,
-                include_future=not review_items,
+                include_future=False,
             )
             if selected_index is None:
                 break

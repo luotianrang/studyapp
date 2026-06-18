@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, time
 
+from .learning_state_machine import REVIEW_INTERVALS_DAYS
+
 
 def _as_datetime(value) -> datetime | None:
     if value is None:
@@ -47,18 +49,25 @@ def calculate_spaced_repetition(
     )
     mastery = _safe_float(review_state.get("mastery"), 0.5)
     mastery = max(0.0, min(1.0, mastery))
+    next_review_time = _as_datetime(review_state.get("next_review_time") or review_state.get("next_review_date"))
 
     if last_review_time is None:
+        next_interval_days = REVIEW_INTERVALS_DAYS[min(review_count, len(REVIEW_INTERVALS_DAYS) - 1)] if REVIEW_INTERVALS_DAYS else 1
         return {
             "last_review_time": None,
             "days_since_last_review": None,
             "review_count": review_count,
             "mastery": mastery,
             "review_score": 1.0,
+            "next_review_time": None,
+            "next_interval_days": next_interval_days,
         }
 
     days_since_last_review = max(0, (now - last_review_time).days)
-    review_score = (1 / (days_since_last_review + 1)) * (1 + review_count * 0.1)
+    target_interval = REVIEW_INTERVALS_DAYS[min(review_count, len(REVIEW_INTERVALS_DAYS) - 1)] if REVIEW_INTERVALS_DAYS else 1
+    overdue_days = max(0, days_since_last_review - target_interval)
+    due_ratio = days_since_last_review / max(1, target_interval)
+    review_score = max(0.1, 0.4 + due_ratio + overdue_days * 0.15)
 
     return {
         "last_review_time": last_review_time.isoformat(),
@@ -66,4 +75,6 @@ def calculate_spaced_repetition(
         "review_count": review_count,
         "mastery": mastery,
         "review_score": round(review_score, 4),
+        "next_review_time": next_review_time.isoformat() if next_review_time is not None else None,
+        "next_interval_days": target_interval,
     }

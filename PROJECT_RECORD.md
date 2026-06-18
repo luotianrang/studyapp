@@ -17,6 +17,30 @@
 
 ## 版本历史
 
+### 2026-06-19 —— 学习状态机升级：严格章节顺序 + 双存储 + 固定遗忘曲线复习
+
+背景：原多书计划系统虽然已经具备 interleaved scheduler、capacity-aware 分配和 review protection，但学习和复习仍主要表现为“任务池中的两类任务”。这会带来三个问题：新学习可能跳章、学习完成后缺少明确状态流转、复习锚点更多依赖分数和到期倾向而不是固定知识生命周期。此次升级在不改变现有 API 和 scheduler 主入口的前提下，把计划系统内部提升为“学习状态机驱动”。
+
+改动清单：
+1. 新增 `backend/services/scheduler/learning_state_machine.py`，定义 `UNLEARNED -> LEARNING -> LEARNED -> REVIEW_QUEUE -> MASTERED`
+2. 在 scheduler 侧构建 `unlearned_store` 与 `learned_store`，让新学习与复习来源分离
+3. `unlearned_store` 按 `book_id -> chapter_number -> order_index` 排序，作为唯一的新学习来源
+4. `backend/services/scheduler/interleaved_scheduler.py` 的 learning 选择逻辑升级为严格顺序门控：当前章节未完成前不进入下一章节
+5. 新学习知识点在生成计划时会同步派生固定复习锚点，使用 `day 1 / 3 / 7 / 14 / 30`
+6. 历史已学知识点会根据最近复习时间与既有复习次数进入 `LEARNED` 或 `REVIEW_QUEUE`，不再只靠分数漂移
+7. `backend/services/scheduler/spaced_repetition.py` 补充固定 interval 语义与更明确的 due 信息，供 review queue 使用
+8. 保持现有 `generate_interleaved_plan()` / `build_scheduler_pipeline()` / `plan_service.create_plan()` 等入口不变，不修改外部 API shape
+9. 扩展 `backend/tests/test_spaced_repetition_integration.py`，新增状态机 store、章节顺序、固定复习锚点等回归测试
+10. 本地验证通过：`py -3.13 -m pytest backend/tests/test_spaced_repetition_integration.py backend/tests/test_plan_service_scheduler_routing.py backend/tests/test_planning_layer.py`
+
+涉及文件：
+- backend/services/scheduler/learning_state_machine.py
+- backend/services/scheduler/__init__.py
+- backend/services/scheduler/interleaved_scheduler.py
+- backend/services/scheduler/spaced_repetition.py
+- backend/tests/test_spaced_repetition_integration.py
+- CURRENT_STATE.md / NEXT_TASKS.md / PROJECT_RECORD.md
+
 ### 2026-06-18 —— 计划系统升级：新增 planning layer，并切换为按 daily_minutes 自动推导学习周期
 
 背景：原系统先以用户输入天数作为主约束，后续再在 scheduler 中压缩计划，容易出现“推荐周期”和“最终周期”语义冲突。现在调整为：由 planning layer 基于每日学习时长、知识点学习负载和复习负载自动推导所需天数，scheduler 只负责在该 horizon 内做 capacity-aware 的学习/复习混排。

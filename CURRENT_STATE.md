@@ -123,3 +123,13 @@
 - Existing scheduler architecture remains in place: interleaved learning/review, capacity-aware day filling, review protection, and session splitting are preserved.
 - `StudyPlan.total_days` now stores the auto-derived plan duration, while `effective_days` still reflects the realized scheduled span.
 - Local verification passed: `py -3.13 -m pytest backend/tests/test_planning_layer.py backend/tests/test_spaced_repetition_integration.py backend/tests/test_plan_service_scheduler_routing.py`
+
+## 2026-06-19 Update (UTF-8 Append)
+- Upgraded the study-planning internals with a learning state machine while preserving the existing API surface and scheduler entrypoints.
+- Added `backend/services/scheduler/learning_state_machine.py` to model `UNLEARNED -> LEARNING -> LEARNED -> REVIEW_QUEUE -> MASTERED`.
+- Multi-book planning now uses two scheduler-side stores: `unlearned_store` for ordered chapter progression and `learned_store` for review-driven items.
+- Learning tasks now follow strict `book -> chapter -> knowledge_point` order; the scheduler no longer skips ahead to later chapters for new learning.
+- Review generation now uses deterministic forgetting-curve anchors (`day 1`, `3`, `7`, `14`, `30`) and mixes review with learning on the same day.
+- Historical learned items can enter `REVIEW_QUEUE` based on due/overdue review state instead of score-only random placement.
+- `generate_interleaved_plan()` still keeps the existing architecture, but now respects at least the requested horizon so planned review anchors are not truncated away.
+- Local verification passed: `py -3.13 -m pytest backend/tests/test_spaced_repetition_integration.py backend/tests/test_plan_service_scheduler_routing.py backend/tests/test_planning_layer.py`
