@@ -27,6 +27,7 @@ def init_db():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(bind=engine)
     _add_column_if_missing("study_plans", "user_id", "INTEGER NOT NULL DEFAULT 1")
+    _add_column_if_missing("study_plans", "effective_days", "INTEGER NOT NULL DEFAULT 0")
     _add_column_if_missing("notification_settings", "user_id", "INTEGER NOT NULL DEFAULT 1")
     _add_column_if_missing("books", "analysis_result", "TEXT DEFAULT ''")
     _add_column_if_missing("chapters", "analysis_result", "TEXT DEFAULT ''")

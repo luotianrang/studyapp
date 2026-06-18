@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from datetime import datetime
 
 from backend.services import plan_service
 
@@ -30,9 +31,14 @@ class DummyDB:
     def __init__(self, books, kps):
         self.books = books
         self.kps = kps
+        self.added = []
+        self._next_id = 1
 
-    def query(self, model):
-        name = getattr(model, "__name__", "")
+    def query(self, *models):
+        if not models:
+            return DummyQuery([])
+
+        name = getattr(models[0], "__name__", "")
         if name == "Book":
             return DummyQuery(self.books)
         if name == "KnowledgePoint":
@@ -40,6 +46,13 @@ class DummyDB:
         return DummyQuery([])
 
     def add(self, *args, **kwargs):
+        self.added.extend(args)
+        for obj in args:
+            if getattr(obj, "id", None) is None:
+                obj.id = self._next_id
+                self._next_id += 1
+            if getattr(obj, "created_at", None) is None:
+                obj.created_at = datetime.now()
         return None
 
     def flush(self):
@@ -102,3 +115,26 @@ def test_multi_book_uses_new_scheduler(monkeypatch):
 
     assert calls["legacy"] == 0
     assert calls["multi"] == 1
+
+
+def test_effective_days_is_persisted_without_overwriting_total_days(monkeypatch):
+    def fake_multi(*args, **kwargs):
+        return [
+            {"day": 1, "items": [], "total_minutes": 0},
+            {"day": 2, "items": [], "total_minutes": 0},
+            {"day": 3, "items": [], "total_minutes": 0},
+        ]
+
+    monkeypatch.setattr(plan_service, "generate_interleaved_plan", fake_multi)
+    monkeypatch.setattr(plan_service, "_build_learning_metrics", lambda *args, **kwargs: {})
+
+    book1 = SimpleNamespace(id=1, title="Book A", status="analyzed")
+    book2 = SimpleNamespace(id=2, title="Book B", status="analyzed")
+    kp1 = SimpleNamespace(id=11, chapter_id=101, title="KP1", description="", importance=3, estimated_minutes=10, order_index=0, book_id=1)
+    kp2 = SimpleNamespace(id=12, chapter_id=102, title="KP2", description="", importance=3, estimated_minutes=10, order_index=0, book_id=2)
+    db = DummyDB([book1, book2], [kp1, kp2])
+
+    result = plan_service.create_plan(db, user_id=1, book_id=1, total_days=2, daily_minutes=30, book_ids=[1, 2])
+
+    assert result.total_days == 2
+    assert result.effective_days == 3

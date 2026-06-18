@@ -66,6 +66,7 @@ class StudyPlan(Base):
     user_id = Column(Integer, nullable=False, default=1, index=True)
     name = Column(String(255), default="")
     total_days = Column(Integer, nullable=False)
+    effective_days = Column(Integer, nullable=False, default=0)
     daily_minutes = Column(Integer, nullable=False)
     status = Column(String(20), default="active")
     created_at = Column(DateTime, default=datetime.datetime.now)

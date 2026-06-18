@@ -38,6 +38,10 @@
 - [x] 单书/多书分流已固定：单书旧 `generate_plan()`，多书新 scheduler pipeline
 - [x] 新增最小回归测试，锁定分流逻辑
 - [x] 本地 markdown 状态文件已同步更新
+- [x] 多书 scheduler 已升级为 capacity-aware scheduling（按分钟容量约束，而非按任务数限制）
+- [x] review protection layer 已接入容量分配层
+- [x] StudyPlan 新增 `effective_days`，修复 `total_days` 与实际生成计划不一致的问题
+- [x] 本地 Python 3.13 / pytest 已修复并验证可用
 
 ---
 
@@ -56,6 +60,7 @@
 - [ ] 为 AI 自动分析链路补充更完整的接口测试和回归测试
 - [ ] 在线上环境接入可控的本地模型服务方案，而不只依赖 fallback
 - [ ] 如需长期稳定持久化，给 Railway 配置持久卷或迁移到独立数据库
+- [ ] 视需要把 scheduler 的 session 长度、review delay 上限等参数抽为配置项
 
 ---
 
@@ -75,3 +80,8 @@
 ## 2026-06-18 更新
 - [x] 多书学习+复习一体化调度已接入并上线。
 - [x] 单书/多书主流程分流已锁定。
+
+## 2026-06-18 更新
+- [x] 多书调度已升级为 capacity-aware + review-protected scheduler，并已补 session-based splitting 回归测试。
+- [x] 计划接口已新增 `effective_days`，保留 `total_days` 为用户请求语义。
+- [x] 已使用 `py -3.13 -m pytest` 验证调度相关 11 条测试通过。

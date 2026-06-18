@@ -17,6 +17,56 @@
 
 ## 版本历史
 
+### 2026-06-18 —— 调度系统升级：capacity-aware scheduler + review protection + effective_days
+
+背景：原多书 scheduler 更像“按分数排序的任务投放器”，没有真正的分钟容量约束。实际问题包括：单日过载、短学习时长下计划不现实、review 在容量紧张时可能被普通学习挤掉，同时 `StudyPlan.total_days` 仍保存用户请求值，和实际生成天数不一致。
+
+改动清单：
+1. 升级 `backend/services/scheduler/interleaved_scheduler.py`，引入按分钟约束的 daily capacity model
+2. 所有 task 在进入最终分配前统一补齐时长估算，缺失时回退到默认分钟数
+3. 容量分配层新增 overflow handling：不再按任务数限制，而是按分钟检查剩余容量
+4. 接入 review protection layer：review 先于 learning 分配，不参与普通 learning 的 push delay 逻辑
+5. 约束 review 延迟上限：超过 1 天未安排时在后续分配中强制优先处理
+6. 将长任务拆分升级为 session-based splitting：优先同日连续安排，超出日容量时跨天拆分，限制 session 过碎
+7. 新增 `StudyPlan.effective_days` 字段，保留 `total_days` 为用户请求语义，`effective_days` 表示实际生成天数
+8. 更新 `backend/database.py` 自动迁移逻辑，为旧库补 `effective_days` 列
+9. 更新 `backend/schemas.py` / `backend/services/plan_service.py`，向 API 返回 `effective_days`，并对历史计划做兼容回填
+10. 修复本机 Python 调用链：确认使用 `py -3.13` 启动解释器，并安装 `pytest`
+11. 本地验证通过：`py -3.13 -m pytest backend/tests/test_spaced_repetition_integration.py backend/tests/test_plan_service_scheduler_routing.py`
+
+涉及文件：
+- backend/database.py
+- backend/models.py
+- backend/schemas.py
+- backend/services/plan_service.py
+- backend/services/scheduler/interleaved_scheduler.py
+- backend/tests/test_plan_service_scheduler_routing.py
+- backend/tests/test_spaced_repetition_integration.py
+- CURRENT_STATE.md / NEXT_TASKS.md / PROJECT_RECORD.md
+
+### 2026-06-18 —— 公网修复：预设书库自动恢复 + 书籍详情知识点显示恢复
+
+背景：Railway 公网环境在空数据库或重建后，预设书库丢失；同时书籍详情页把“全部知识点”错误绑定到 `status === analyzed`，导致知识点数据存在时也可能看不到按钮。
+
+改动清单：
+1. 新增 `backend/services/seed_service.py`，启动时为空库自动补种两本高数预设书
+2. 新增 `backend/preset_books_seed.json`，将两本预设书的章节与知识点纳入仓库
+3. `backend/main.py` 启动阶段接入自动补种逻辑
+4. 修复 `backend/services/admin_service.py` 批量导入逻辑，导入时保留已有知识点而不是重新生成空分析
+5. 扩展 `backend/schemas.py` 中 `ChapterImport`，允许保留章节状态
+6. 修复 `frontend/js/views/book-detail.js`，按真实 `knowledge_point_count` 决定是否显示“全部知识点”和“生成计划”
+7. 推送到 GitHub `main` 并由 Railway 自动部署
+8. 公网验证恢复成功：上册 7 章 124 个知识点，下册 5 章 50 个知识点
+
+涉及文件：
+- backend/main.py
+- backend/schemas.py
+- backend/services/admin_service.py
+- backend/services/seed_service.py
+- backend/preset_books_seed.json
+- frontend/js/views/book-detail.js
+- CURRENT_STATE.md / NEXT_TASKS.md
+
 ### 2026-06-16 —— 产品重构：从「上传分析」到「预设书库」
 
 背景：上传 PDF 分析太慢、质量不稳定，用户体验不好。

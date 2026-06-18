@@ -20,6 +20,7 @@ def _plan_response(plan: StudyPlan) -> PlanResponse:
         book_id=plan.book_id,
         name=plan.name,
         total_days=plan.total_days,
+        effective_days=plan.effective_days or plan.total_days,
         daily_minutes=plan.daily_minutes,
         status=plan.status,
         created_at=plan.created_at,
@@ -314,6 +315,7 @@ def create_plan(
         plan_data = generate_plan(kp_list, total_days, daily_minutes)
 
     total_kps = sum(len(day["items"]) for day in plan_data)
+    effective_days = max((day.get("day", 0) for day in plan_data), default=0)
     plan_title = books[0].title if len(books) == 1 else " / ".join(book.title for book in books)
     plan_name = f"{plan_title} - {total_days}\u5929\u8ba1\u5212\uff08\u5171{total_kps}\u4e2a\u77e5\u8bc6\u70b9\uff09"
     plan = StudyPlan(
@@ -321,6 +323,7 @@ def create_plan(
         user_id=user_id,
         name=plan_name,
         total_days=total_days,
+        effective_days=effective_days,
         daily_minutes=daily_minutes,
         status="active",
     )

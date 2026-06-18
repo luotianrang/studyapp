@@ -110,6 +110,7 @@ class PlanResponse(BaseModel):
     book_id: int
     name: str
     total_days: int
+    effective_days: int = 0
     daily_minutes: int
     status: str
     created_at: datetime
@@ -124,6 +125,8 @@ class PlanDayResponse(BaseModel):
     total_minutes: int
     completed: bool
     items: List["PlanItemResponse"] = []
+    study_items: List["PlanItemResponse"] = []
+    review_items: List["PlanItemResponse"] = []
 
     class Config:
         from_attributes = True

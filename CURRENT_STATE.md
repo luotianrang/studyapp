@@ -9,7 +9,7 @@
 |------|------|
 | 项目名称 | 学习助手 StudyApp |
 | 代码路径 | `C:/Users/28618/Desktop/学习app` |
-| 启动方式 | 双击 `start.bat`，或 `python -m uvicorn backend.main:app --host 0.0.0.0 --port 8899` |
+| 启动方式 | 双击 `start.bat`，或 `py -3.13 -m uvicorn backend.main:app --host 0.0.0.0 --port 8899` |
 | 本地地址 | http://localhost:8899 |
 | 公网地址 | https://studyapp-production-b848.up.railway.app |
 | 技术栈 | Python FastAPI + SQLite + 原生 HTML/CSS/JS SPA |
@@ -37,6 +37,11 @@
 11. 多书交叉学习调度已接入计划生成主流程，`book_ids` > 1 时启用交叉调度
 12. 学习计划主流程已固定分流：单书严格走旧 `generate_plan()`，多书唯一走新 scheduler pipeline
 13. 已新增最小回归测试，锁定单书/多书分流逻辑
+14. 多书 scheduler 已升级为 capacity-aware scheduling：按分钟容量分配，不再只是排序系统
+15. review protection layer 已接入容量分配层：review 先排、延迟受限、容量紧张时优先保护 review
+16. 超长学习任务已切换为 session-based splitting：优先同日连续安排，超出日容量时跨天拆分，限制 session 过碎
+17. StudyPlan 已拆分 `total_days` 与 `effective_days` 语义：前者保留用户请求天数，后者记录实际生成天数
+18. 本地 Python 3.13 与 pytest 已验证可用，调度相关测试当前通过
 
 ---
 
@@ -54,6 +59,7 @@
 4. 书籍详情页“全部知识点”按钮已按知识点数量启用
 5. 学习计划支持多书勾选创建
 6. 本次调度升级后，单书旧逻辑、多书新调度的主流程已在代码中固定
+7. 本次公网已上线新的 capacity-aware scheduler、review protection layer 与 `effective_days` 返回字段
 
 ---
 
@@ -94,6 +100,8 @@
 5. Railway 若重建数据库，启动时会自动恢复预设书库
 6. 当前公网后台管理接口仍未加鉴权，下一步建议优先补安全保护
 7. 学习计划接口已支持 `book_ids`，单书与多书分流规则已固定并已补最小回归测试
+8. 计划接口现同时返回 `total_days`（用户请求）与 `effective_days`（实际计划天数），兼容旧字段
+9. 本地测试命令当前推荐使用 `py -3.13 -m pytest`
 
 ## 2026-06-18 更新
 - 学习计划分流已固定为：单书走旧 generate_plan，多书走新 scheduler pipeline。
@@ -102,3 +110,9 @@
 ## 2026-06-18 更新
 - 多书学习调度已接入 Spaced Repetition，支持学习+复习一体化排序。
 - 单书仍走旧 generate_plan，多书走新 scheduler pipeline。
+
+## 2026-06-18 更新
+- 多书调度已升级为 capacity-aware scheduler：按分钟容量分配，支持 session-based splitting，避免单日过载。
+- review protection layer 已上线：review 先排、容量紧张时优先保护 review，超过 1 天延迟后强制优先处理。
+- StudyPlan 新增 `effective_days`，用于表示实际生成天数；`total_days` 保持用户请求语义不变。
+- 已在本地用 `py -3.13 -m pytest` 跑通调度相关 11 条测试。
