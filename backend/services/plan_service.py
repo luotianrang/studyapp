@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -100,7 +102,108 @@ def _load_books(db: Session, book_ids: list[int]) -> list[Book]:
     return books
 
 
-def _collect_kp_list(db: Session, book_ids: list[int]) -> list[dict]:
+def _build_learning_metrics(db: Session, user_id: int, kp_ids: list[int]) -> dict[int, dict]:
+    metrics_map = {
+        kp_id: {
+            "completion_rate": 0.0,
+            "skip_rate": 0.0,
+            "error_rate": 0.0,
+            "review_count": 0,
+            "interval_days": 0,
+            "repetitions": 0,
+            "last_quality": None,
+            "last_review_time": None,
+            "next_review_time": None,
+        }
+        for kp_id in kp_ids
+    }
+    if not kp_ids:
+        return metrics_map
+
+    historical_items = (
+        db.query(PlanItem, PlanDay, StudyPlan)
+        .join(PlanDay, PlanItem.plan_day_id == PlanDay.id)
+        .join(StudyPlan, PlanDay.plan_id == StudyPlan.id)
+        .filter(
+            StudyPlan.user_id == user_id,
+            PlanItem.knowledge_point_id.in_(kp_ids),
+        )
+        .all()
+    )
+
+    now = datetime.now()
+    item_totals = {kp_id: 0 for kp_id in kp_ids}
+    completed_totals = {kp_id: 0 for kp_id in kp_ids}
+    skipped_totals = {kp_id: 0 for kp_id in kp_ids}
+
+    for item, day, _plan in historical_items:
+        kp_id = item.knowledge_point_id
+        item_totals[kp_id] += 1
+        if item.completed:
+            completed_totals[kp_id] += 1
+        elif day.target_date and day.target_date < now:
+            skipped_totals[kp_id] += 1
+
+    review_records = (
+        db.query(ReviewRecord)
+        .filter(
+            ReviewRecord.user_id == user_id,
+            ReviewRecord.knowledge_point_id.in_(kp_ids),
+        )
+        .all()
+    )
+    for record in review_records:
+        metrics_map[record.knowledge_point_id].update(
+            {
+                "interval_days": record.interval_days or 0,
+                "repetitions": record.repetitions or 0,
+                "last_quality": record.last_quality,
+                "last_review_time": record.last_review_date.isoformat() if record.last_review_date else None,
+                "next_review_time": record.next_review_date.isoformat() if record.next_review_date else None,
+            }
+        )
+
+    review_logs = (
+        db.query(ReviewLog)
+        .filter(
+            ReviewLog.user_id == user_id,
+            ReviewLog.knowledge_point_id.in_(kp_ids),
+        )
+        .all()
+    )
+    low_quality_totals = {kp_id: 0 for kp_id in kp_ids}
+    for log in review_logs:
+        kp_id = log.knowledge_point_id
+        metrics_map[kp_id]["review_count"] += 1
+        if log.quality < 3:
+            low_quality_totals[kp_id] += 1
+        if (
+            metrics_map[kp_id]["last_review_time"] is None
+            or log.reviewed_at.isoformat() > metrics_map[kp_id]["last_review_time"]
+        ):
+            metrics_map[kp_id]["last_review_time"] = log.reviewed_at.isoformat()
+            metrics_map[kp_id]["last_quality"] = log.quality
+
+    for kp_id in kp_ids:
+        total_items = item_totals[kp_id]
+        completed = completed_totals[kp_id]
+        skipped = skipped_totals[kp_id]
+        reviews = metrics_map[kp_id]["review_count"]
+        low_quality = low_quality_totals[kp_id]
+
+        completion_rate = completed / total_items if total_items else 0.0
+        skip_rate = skipped / total_items if total_items else 0.0
+        error_base = total_items + reviews
+        error_rate = (low_quality + skipped) / error_base if error_base else 0.0
+
+        metrics_map[kp_id]["completion_rate"] = round(completion_rate, 4)
+        metrics_map[kp_id]["skip_rate"] = round(skip_rate, 4)
+        metrics_map[kp_id]["error_rate"] = round(error_rate, 4)
+
+    return metrics_map
+
+
+def _collect_kp_list(db: Session, book_ids: list[int], user_id: int) -> list[dict]:
     rows = (
         db.query(
             KnowledgePoint,
@@ -116,8 +219,12 @@ def _collect_kp_list(db: Session, book_ids: list[int]) -> list[dict]:
         .all()
     )
 
+    kp_ids = [kp.id for kp, *_rest in rows]
+    metrics_map = _build_learning_metrics(db, user_id, kp_ids)
+
     kp_list = []
     for kp, chapter_title, chapter_number, source_book_id, book_title in rows:
+        metrics = metrics_map.get(kp.id, {})
         kp_list.append(
             {
                 "id": kp.id,
@@ -132,9 +239,28 @@ def _collect_kp_list(db: Session, book_ids: list[int]) -> list[dict]:
                 "chapter_number": chapter_number or 0,
                 "book_id": source_book_id,
                 "book_title": book_title,
+                "learning_metrics": {
+                    "completion_rate": metrics.get("completion_rate", 0.0),
+                    "skip_rate": metrics.get("skip_rate", 0.0),
+                    "error_rate": metrics.get("error_rate", 0.0),
+                },
+                "review_state": {
+                    "review_count": metrics.get("review_count", 0),
+                    "interval_days": metrics.get("interval_days", 0),
+                    "repetitions": metrics.get("repetitions", 0),
+                    "last_quality": metrics.get("last_quality"),
+                    "last_review_time": metrics.get("last_review_time"),
+                    "next_review_time": metrics.get("next_review_time"),
+                },
             }
         )
     return kp_list
+
+
+def _build_plan_data(kp_list: list[dict], total_days: int, daily_minutes: int, use_multibook: bool) -> list[dict]:
+    if use_multibook:
+        return generate_interleaved_plan(kp_list, total_days, daily_minutes)
+    return generate_plan(kp_list, total_days, daily_minutes)
 
 
 def create_plan(
@@ -151,27 +277,36 @@ def create_plan(
 
     books = _load_books(db, normalized_book_ids)
     primary_book_id = normalized_book_ids[0]
-    existing_active = db.query(StudyPlan).filter(StudyPlan.book_id == primary_book_id, StudyPlan.status == "active").first()
+    existing_active = (
+        db.query(StudyPlan)
+        .filter(
+            StudyPlan.book_id == primary_book_id,
+            StudyPlan.user_id == user_id,
+            StudyPlan.status == "active",
+        )
+        .first()
+    )
     if existing_active:
         raise ValueError("An active plan already exists for this book")
 
-    kp_list = _collect_kp_list(db, normalized_book_ids)
-    use_multibook = len(normalized_book_ids) > 1
+    kp_list = _collect_kp_list(db, normalized_book_ids, user_id)
 
-    if use_multibook:
-        plan_data = generate_interleaved_plan(kp_list, total_days, daily_minutes)
-    else:
-        plan_data = generate_plan(kp_list, total_days, daily_minutes)
+    plan_data = []
+    try:
+        plan_data = _build_plan_data(kp_list, total_days, daily_minutes, len(normalized_book_ids) > 1)
+    except Exception:
+        logger.exception("Adaptive scheduler failed, falling back to legacy plan generator")
 
     if not plan_data:
         plan_data = generate_plan(kp_list, total_days, daily_minutes)
 
     total_kps = sum(len(day["items"]) for day in plan_data)
     plan_title = books[0].title if len(books) == 1 else " / ".join(book.title for book in books)
+    plan_name = f"{plan_title} - {total_days}\u5929\u8ba1\u5212\uff08\u5171{total_kps}\u4e2a\u77e5\u8bc6\u70b9\uff09"
     plan = StudyPlan(
         book_id=primary_book_id,
         user_id=user_id,
-        name=f"{plan_title} - {total_days}澶╄鍒?{total_kps}涓煡璇嗙偣)",
+        name=plan_name,
         total_days=total_days,
         daily_minutes=daily_minutes,
         status="active",
@@ -230,7 +365,10 @@ def create_plan(
 
 
 def list_plans(db: Session, user_id: int):
-    return [_plan_response(plan) for plan in db.query(StudyPlan).filter(StudyPlan.user_id == user_id).order_by(StudyPlan.created_at.desc()).all()]
+    return [
+        _plan_response(plan)
+        for plan in db.query(StudyPlan).filter(StudyPlan.user_id == user_id).order_by(StudyPlan.created_at.desc()).all()
+    ]
 
 
 def get_plan(db: Session, plan_id: int, user_id: int) -> PlanResponse:
@@ -296,11 +434,16 @@ def get_review_stats(db: Session, plan_id: int, user_id: int) -> ReviewStatsResp
     _ensure_owned_plan(db, plan_id, user_id)
     logs = db.query(ReviewLog).filter(ReviewLog.plan_id == plan_id).all()
     total = len(logs)
-    review_items = db.query(PlanItem).join(PlanDay).filter(
-        PlanDay.plan_id == plan_id,
-        PlanItem.item_type == "review",
-        PlanItem.completed == False,
-    ).count()
+    review_items = (
+        db.query(PlanItem)
+        .join(PlanDay)
+        .filter(
+            PlanDay.plan_id == plan_id,
+            PlanItem.item_type == "review",
+            PlanItem.completed == False,
+        )
+        .count()
+    )
     return ReviewStatsResponse(
         total_reviews=total,
         completed_reviews=total,

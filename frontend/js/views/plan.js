@@ -1,16 +1,50 @@
-﻿/// SM-2 间隔重复
+/// SM-2 间隔重复
 router.register("plans", async (mode, bookId) => {
     setPage("学习计划", "管理和查看学习计划");
     const c = pageContent;
     c.innerHTML = `<div class="text-center" style="padding:40px"><p>..</p></div>`;
 
-    if (mode === "new" && bookId) {
+    if (mode === "new") {
         try {
-            const book = await api.getBook(bookId);
+            const learningBooks = await api.listMyLearningBooks();
+            const analyzedBooks = learningBooks.filter(book => book.status === "analyzed");
+            const preselectedBookId = bookId ? Number(bookId) : null;
+
+            if (!analyzedBooks.length) {
+                c.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📚</div>
+                        <h3>还没有可生成计划的书</h3>
+                        <p>请先在“我的学习”中加入书籍，并等待分析完成</p>
+                        <button class="btn btn-primary mt-16" onclick="router.go('library')">📚 去书库</button>
+                    </div>
+                `;
+                return;
+            }
+
+            const selectionHtml = analyzedBooks.map(book => `
+                <label class="card mb-8" style="display:block;cursor:pointer;border:1px solid var(--border);box-shadow:none">
+                    <div class="card-body" style="padding:12px 14px">
+                        <div class="flex items-center gap-8">
+                            <input type="checkbox" class="plan-book-checkbox" value="${book.id}" ${book.id === preselectedBookId ? "checked" : ""}>
+                            <div>
+                                <div style="font-weight:600">${escHtml(book.title)}</div>
+                                <div class="text-sm text-secondary mt-4">${escHtml(book.author || "未填写作者")}</div>
+                            </div>
+                        </div>
+                    </div>
+                </label>
+            `).join("");
+
             c.innerHTML = `
-                <div class="card" style="max-width:540px">
-                <div class="card-header">🚀 生成学习计划 - ${escHtml(book.title)}</div>
+                <div class="card" style="max-width:720px">
+                    <div class="card-header">🚀 生成学习计划</div>
                     <div class="card-body">
+                        <div class="form-group">
+                            <label>选择书籍</label>
+                            <p class="text-sm text-secondary mb-8">可同时勾选多本已分析完成的书籍，系统会按多书学习调度算法生成计划</p>
+                            <div id="planBookSelection">${selectionHtml}</div>
+                        </div>
                         <div class="form-group">
                             <label>学习天数</label>
                             <input class="form-control" id="planDays" type="number" min="1" max="365" value="14">
@@ -24,25 +58,34 @@ router.register("plans", async (mode, bookId) => {
                         <button class="btn btn-secondary" onclick="router.go('plans')">取消</button>
                         <div id="planProgress" class="mt-16" style="display:none">
                             <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
-                        <p class="text-sm text-secondary mt-8" id="planStatus">准备好后点击生成</p>
+                            <p class="text-sm text-secondary mt-8" id="planStatus">准备好后点击生成</p>
                         </div>
                     </div>
                 </div>
             `;
+
             document.getElementById("generatePlanBtn").onclick = async () => {
-                const days = parseInt(document.getElementById("planDays").value);
-                const minutes = parseInt(document.getElementById("planMinutes").value);
-                    if (!days || !minutes || days < 1 || minutes < 5) {
-                        alert("请输入有效的天数和分钟数");
+                const selectedIds = Array.from(document.querySelectorAll(".plan-book-checkbox:checked")).map(el => Number(el.value));
+                const days = parseInt(document.getElementById("planDays").value, 10);
+                const minutes = parseInt(document.getElementById("planMinutes").value, 10);
+
+                if (!selectedIds.length) {
+                    alert("请至少选择一本书");
                     return;
                 }
+                if (!days || !minutes || days < 1 || minutes < 5) {
+                    alert("请输入有效的天数和分钟数");
+                    return;
+                }
+
                 const btn = document.getElementById("generatePlanBtn");
                 const progress = document.getElementById("planProgress");
                 btn.disabled = true;
                 progress.style.display = "block";
-                document.getElementById("planStatus").textContent = "生成中...";
+                document.getElementById("planStatus").textContent = selectedIds.length > 1 ? "正在生成多书学习计划..." : "生成中...";
+
                 try {
-                    const plan = await api.generatePlan(bookId, days, minutes);
+                    const plan = await api.generatePlan(selectedIds, days, minutes);
                     document.getElementById("planStatus").textContent = `✅ 已生成计划「${plan.name}」`;
                     setTimeout(() => router.go("plans"), 1000);
                 } catch (e) {
@@ -56,7 +99,6 @@ router.register("plans", async (mode, bookId) => {
         return;
     }
 
-    // List all plans
     try {
         const plans = await api.listPlans();
         if (!plans.length) {
@@ -64,13 +106,20 @@ router.register("plans", async (mode, bookId) => {
                 <div class="empty-state">
                     <div class="empty-icon">📅</div>
                     <h3>还没有学习计划</h3>
-                    <p>从书库选择一本书，创建学习计划开始学习</p>
-                    <button class="btn btn-primary mt-16" onclick="router.go('library')">📚 去书库</button>
+                    <p>从已加入学习的书籍里选择一本或多本，创建学习计划开始学习</p>
+                    <button class="btn btn-primary mt-16" onclick="router.go('plans','new')">🚀 新建计划</button>
                 </div>
             `;
             return;
         }
-        let html = "";
+
+        let html = `
+            <div class="flex justify-between items-center mb-16">
+                <div class="text-sm text-secondary">支持单书计划和多书交叉学习计划</div>
+                <button class="btn btn-primary" onclick="router.go('plans','new')">🚀 新建计划</button>
+            </div>
+        `;
+
         for (const plan of plans) {
             const statusClass = `badge-${plan.status}`;
             html += `<div class="card mb-16">
@@ -78,9 +127,9 @@ router.register("plans", async (mode, bookId) => {
                     <div class="flex justify-between items-center">
                         <div>
                             <h3 style="font-size:16px;font-weight:600">${escHtml(plan.name)}</h3>
-                        <p class="text-sm text-secondary mt-8">
-                            📅 ${plan.total_days} 天 · 每天 ${plan.daily_minutes} 分钟
-                            🕐 ${new Date(plan.created_at).toLocaleDateString("zh-CN")}
+                            <p class="text-sm text-secondary mt-8">
+                                📅 ${plan.total_days} 天 · 每天 ${plan.daily_minutes} 分钟
+                                🕐 ${new Date(plan.created_at).toLocaleDateString("zh-CN")}
                             </p>
                         </div>
                         <span class="badge ${statusClass}">${plan.status === "active" ? "进行中" : plan.status === "completed" ? "已完成" : plan.status}</span>
@@ -111,7 +160,6 @@ window.viewPlanDetail = async (planId) => {
         ]);
         setPage(plan.name, `${plan.total_days} 天计划 · 每天 ${plan.daily_minutes} 分钟`);
 
-        // Review stats summary
         let html = `<div class="review-summary${reviewStats.total_reviews > 0 ? " has-data" : ""}">
             <div class="review-summary-item">
                 <div class="review-stat-value">${reviewStats.total_reviews}</div>
@@ -136,7 +184,7 @@ window.viewPlanDetail = async (planId) => {
             const dateStr = day.target_date ? new Date(day.target_date).toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "short" }) : "";
             const hasReview = day.items.some(i => i.item_type === "review");
             html += `<div class="timeline-item ${day.completed ? "completed" : ""} ${hasReview ? "has-review" : ""}" id="day-${day.day_number}">
-        <div class="timeline-date">📅 第 ${day.day_number} 天 · ${dateStr}</div>
+                <div class="timeline-date">📅 第 ${day.day_number} 天 · ${dateStr}</div>
                 <div class="timeline-title">${day.total_minutes} 分钟 · ${day.items.length} 项</div>
                 <div class="timeline-meta">
                     <span class="badge ${day.completed ? "badge-completed" : "badge-active"}">${day.completed ? "✅ 已完成" : "⏳ 进行中"}</span>
@@ -154,18 +202,18 @@ window.viewPlanDetail = async (planId) => {
                     </div>
                     <div class="text-xs text-secondary" style="margin-top:2px">
                         ${escHtml(item.chapter_title)} · ${item.estimated_minutes} 分钟
-                        ${item.completed ? ' ✅ 已完成' : ''}
+                        ${item.completed ? " ✅ 已完成" : ""}
                     </div>
                     ${!day.completed && isReview && !item.completed ? `
                         <div class="review-rating mt-8" id="rating-${item.id}">
                             <span class="text-xs text-secondary">复习评分：</span>
-                            ${[1,2,3,4,5].map(q => `<button class="rating-btn" data-quality="${q}" onclick="rateReviewItem(${planId},${item.id},${q})">${q}</button>`).join("")}
+                            ${[1, 2, 3, 4, 5].map(q => `<button class="rating-btn" data-quality="${q}" onclick="rateReviewItem(${planId},${item.id},${q})">${q}</button>`).join("")}
                             <span class="text-xs text-secondary" style="margin-left:6px">(1= 完全不记得 · 5= 非常熟悉)</span>
                         </div>
-                    ` : ''}
+                    ` : ""}
                     ${item.completed && isReview ? `
-                    <div class="text-xs text-secondary mt-4">✅ 已完成复习</div>
-                    ` : ''}
+                        <div class="text-xs text-secondary mt-4">✅ 已完成复习</div>
+                    ` : ""}
                 </div>`;
             }
             html += `</div></div>`;

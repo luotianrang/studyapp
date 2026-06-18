@@ -51,8 +51,14 @@ const api = {
     getAllKnowledgePoints(bookId) { return this.request("GET", "/analysis/book/" + bookId + "/knowledge-points"); },
 
     // Plans
-    generatePlan(bookId, totalDays, dailyMinutes) {
-        return this.request("POST", "/plans/generate", { book_id: bookId, total_days: totalDays, daily_minutes: dailyMinutes });
+    generatePlan(bookIds, totalDays, dailyMinutes) {
+        const normalizedBookIds = Array.isArray(bookIds) ? bookIds : [bookIds];
+        return this.request("POST", "/plans/generate", {
+            book_id: normalizedBookIds[0],
+            book_ids: normalizedBookIds,
+            total_days: totalDays,
+            daily_minutes: dailyMinutes,
+        });
     },
     listPlans() { return this.request("GET", "/plans/"); },
     getPlan(id) { return this.request("GET", "/plans/" + id); },
