@@ -98,3 +98,7 @@
 ## 2026-06-18 更新
 - 学习计划分流已固定为：单书走旧 generate_plan，多书走新 scheduler pipeline。
 - 已补最小回归测试，锁定分流行为。
+
+## 2026-06-18 更新
+- 多书学习调度已接入 Spaced Repetition，支持学习+复习一体化排序。
+- 单书仍走旧 generate_plan，多书走新 scheduler pipeline。

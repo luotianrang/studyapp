@@ -114,6 +114,7 @@ def _build_learning_metrics(db: Session, user_id: int, kp_ids: list[int]) -> dic
             "last_quality": None,
             "last_review_time": None,
             "next_review_time": None,
+            "mastery": 0.5,
         }
         for kp_id in kp_ids
     }
@@ -199,6 +200,13 @@ def _build_learning_metrics(db: Session, user_id: int, kp_ids: list[int]) -> dic
         metrics_map[kp_id]["completion_rate"] = round(completion_rate, 4)
         metrics_map[kp_id]["skip_rate"] = round(skip_rate, 4)
         metrics_map[kp_id]["error_rate"] = round(error_rate, 4)
+        mastery = 0.5
+        if reviews:
+            avg_quality = max(0.0, min(5.0, sum(log.quality for log in review_logs if log.knowledge_point_id == kp_id) / reviews))
+            mastery = avg_quality / 5
+        elif total_items:
+            mastery = 0.5 + completion_rate * 0.3
+        metrics_map[kp_id]["mastery"] = round(max(0.0, min(1.0, mastery)), 4)
 
     return metrics_map
 
@@ -225,6 +233,15 @@ def _collect_kp_list(db: Session, book_ids: list[int], user_id: int) -> list[dic
     kp_list = []
     for kp, chapter_title, chapter_number, source_book_id, book_title in rows:
         metrics = metrics_map.get(kp.id, {})
+        review_state = {
+            "review_count": metrics.get("review_count", 0),
+            "interval_days": metrics.get("interval_days", 0),
+            "repetitions": metrics.get("repetitions", 0),
+            "last_quality": metrics.get("last_quality"),
+            "last_review_time": metrics.get("last_review_time"),
+            "next_review_time": metrics.get("next_review_time"),
+            "mastery": metrics.get("mastery", 0.5),
+        }
         kp_list.append(
             {
                 "id": kp.id,
@@ -244,14 +261,10 @@ def _collect_kp_list(db: Session, book_ids: list[int], user_id: int) -> list[dic
                     "skip_rate": metrics.get("skip_rate", 0.0),
                     "error_rate": metrics.get("error_rate", 0.0),
                 },
-                "review_state": {
-                    "review_count": metrics.get("review_count", 0),
-                    "interval_days": metrics.get("interval_days", 0),
-                    "repetitions": metrics.get("repetitions", 0),
-                    "last_quality": metrics.get("last_quality"),
-                    "last_review_time": metrics.get("last_review_time"),
-                    "next_review_time": metrics.get("next_review_time"),
-                },
+                "review_state": review_state,
+                "last_review_time": review_state["last_review_time"],
+                "review_count": review_state["review_count"],
+                "mastery": review_state["mastery"],
             }
         )
     return kp_list
@@ -381,6 +394,7 @@ def list_plan_days(db: Session, plan_id: int, user_id: int):
     result = []
     for day in days:
         items = db.query(PlanItem).filter(PlanItem.plan_day_id == day.id).order_by(PlanItem.order_index).all()
+        item_responses = [_item_response(db, item) for item in items]
         result.append(
             PlanDayResponse(
                 id=day.id,
@@ -388,7 +402,9 @@ def list_plan_days(db: Session, plan_id: int, user_id: int):
                 target_date=day.target_date,
                 total_minutes=day.total_minutes,
                 completed=day.completed,
-                items=[_item_response(db, item) for item in items],
+                items=item_responses,
+                study_items=[item for item in item_responses if item.item_type != "review"],
+                review_items=[item for item in item_responses if item.item_type == "review"],
             )
         )
     return result

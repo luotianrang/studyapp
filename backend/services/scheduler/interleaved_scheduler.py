@@ -50,55 +50,88 @@ def _normalize_urgency(task: dict, total_days: int) -> float:
     return min(5.0, 1.0 + sequence_hint / horizon)
 
 
+def _build_learning_score(task: dict, total_days: int) -> tuple[float, dict, dict]:
+    normalized = dict(task)
+    normalized["difficulty"] = _normalize_difficulty(task)
+    normalized["importance"] = _normalize_importance(task)
+    normalized["urgency"] = _normalize_urgency(task, total_days)
+
+    learning_metrics = dict(task.get("learning_metrics") or {})
+    attention = calculate_attention_score(normalized, learning_metrics=learning_metrics)
+    adaptive = calculate_adaptive_priority(
+        normalized,
+        attention_score=attention["attention_score"],
+        spaced_repetition_factor=1.0,
+        repetition_priority=1.0,
+        learning_metrics=learning_metrics,
+    )
+    interleaved_score = (
+        normalized["importance"] * 0.4
+        + normalized["difficulty"] * 0.4
+        + normalized["urgency"] * 0.2
+    )
+    learning_score = interleaved_score + attention["attention_score"]
+    return round(learning_score, 4), attention, adaptive
+
+
+def _should_create_study_item(task: dict) -> bool:
+    learning_metrics = dict(task.get("learning_metrics") or {})
+    completion_rate = float(learning_metrics.get("completion_rate", 0.0) or 0.0)
+    mastery = float(task.get("mastery", 0.5) or 0.5)
+    review_count = int(task.get("review_count", 0) or 0)
+    return completion_rate < 1.0 or (review_count == 0 and mastery < 0.95)
+
+
+def _should_create_review_item(task: dict) -> bool:
+    review_count = int(task.get("review_count", 0) or 0)
+    last_review_time = task.get("last_review_time")
+    mastery = float(task.get("mastery", 0.5) or 0.5)
+    return review_count > 0 or last_review_time is not None or mastery < 0.6
+
+
+def _build_task_variant(task: dict, item_type: str, total_days: int, now: datetime) -> dict:
+    variant = dict(task)
+    sr = calculate_spaced_repetition(variant, review_state=variant.get("review_state"), now=now)
+    learning_score, attention, adaptive = _build_learning_score(variant, total_days)
+
+    variant.update(sr)
+    variant.update(attention)
+    variant.update(adaptive)
+    variant["difficulty"] = _normalize_difficulty(task)
+    variant["importance"] = _normalize_importance(task)
+    variant["urgency"] = _normalize_urgency(task, total_days)
+    variant["learning_score"] = learning_score
+    variant["item_type"] = item_type
+    variant["final_score"] = round(learning_score * 0.6 + sr["review_score"] * 0.4, 4)
+    variant["score"] = round(variant["final_score"] + adaptive["priority_score"] * 0.05, 4)
+
+    if item_type == "review":
+        variant["estimated_minutes"] = get_review_minutes(variant.get("estimated_minutes", 10))
+    return variant
+
+
 def build_interleaved_tasks(knowledge_points: list[dict], total_days: int) -> list[dict]:
     tasks = []
     now = datetime.now()
 
     for kp in knowledge_points:
-        task = dict(kp)
-        task["book_id"] = kp.get("book_id", 0)
-        task["difficulty"] = _normalize_difficulty(kp)
-        task["importance"] = _normalize_importance(kp)
-        task["urgency"] = _normalize_urgency(kp, total_days)
+        base_task = dict(kp)
+        base_task["book_id"] = kp.get("book_id", 0)
 
-        learning_metrics = dict(kp.get("learning_metrics") or {})
-        review_state = dict(kp.get("review_state") or {})
+        review_snapshot = calculate_spaced_repetition(base_task, review_state=base_task.get("review_state"), now=now)
+        base_task.update(review_snapshot)
 
-        sr = calculate_spaced_repetition(task, review_state=review_state, now=now)
-        attention = calculate_attention_score(task, learning_metrics=learning_metrics)
-        adaptive = calculate_adaptive_priority(
-            task,
-            attention_score=attention["attention_score"],
-            spaced_repetition_factor=sr["spaced_repetition_factor"],
-            repetition_priority=sr["repetition_priority"],
-            learning_metrics=learning_metrics,
-        )
-
-        task.update(sr)
-        task.update(attention)
-        task.update(adaptive)
-        task["item_type"] = "review" if task["review_due"] else "learning"
-
-        if task["item_type"] == "review":
-            task["estimated_minutes"] = get_review_minutes(task.get("estimated_minutes", 10))
-
-        base_score = (
-            task["importance"] * 0.25
-            + task["difficulty"] * 0.2
-            + task["urgency"] * 0.15
-            + attention["attention_score"] * 0.2
-            + sr["repetition_priority"] * 0.2
-        )
-        task["score"] = round(base_score + adaptive["priority_score"], 4)
-        tasks.append(task)
+        if _should_create_study_item(base_task):
+            tasks.append(_build_task_variant(base_task, "learning", total_days, now))
+        if _should_create_review_item(base_task):
+            tasks.append(_build_task_variant(base_task, "review", total_days, now))
 
     tasks.sort(
         key=lambda item: (
-            0 if item.get("review_due") else 1,
             -item["score"],
-            -item.get("priority_score", 0),
-            -item.get("importance", 0),
-            -item.get("difficulty", 0),
+            0 if item.get("item_type") == "review" else 1,
+            -item.get("review_score", 0),
+            -item.get("learning_score", 0),
             item.get("book_id", 0),
             item.get("chapter_number", 0),
             item.get("order_index", 0),
@@ -111,11 +144,11 @@ def build_scheduler_pipeline(knowledge_points: list[dict], total_days: int, dail
     tasks = build_interleaved_tasks(knowledge_points, total_days)
     tasks.sort(
         key=lambda item: (
-            0 if item.get("review_due") else 1,
+            0 if item.get("item_type") == "review" else 1,
             -item["score"],
-            -item.get("priority_score", 0),
-            -item.get("importance", 0),
-            -item.get("difficulty", 0),
+            0 if item.get("item_type") == "review" else 1,
+            -item.get("review_score", 0),
+            -item.get("learning_score", 0),
             item.get("book_id", 0),
             item.get("chapter_number", 0),
             item.get("order_index", 0),
@@ -139,6 +172,8 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
             break
 
         day_items = []
+        study_items = []
+        review_items = []
         day_total_minutes = 0
         book_task_counts = defaultdict(int)
         last_book_id = None
@@ -185,23 +220,34 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
                 )
                 break
 
-            day_items.append(
-                {
-                    "knowledge_point_id": selected_task.get("id", 0),
-                    "knowledge_point_title": selected_task.get("title", ""),
-                    "chapter_id": selected_task.get("chapter_id", 0),
-                    "chapter_title": selected_task.get("chapter_title", ""),
-                    "book_id": selected_book_id,
-                    "book_title": selected_task.get("book_title", ""),
-                    "score": selected_task.get("score", 0),
-                    "order_index": len(day_items),
-                    "estimated_minutes": item_minutes,
-                    "item_type": selected_task.get("item_type", "learning"),
-                }
-            )
+            item_payload = {
+                "knowledge_point_id": selected_task.get("id", 0),
+                "knowledge_point_title": selected_task.get("title", ""),
+                "chapter_id": selected_task.get("chapter_id", 0),
+                "chapter_title": selected_task.get("chapter_title", ""),
+                "book_id": selected_book_id,
+                "book_title": selected_task.get("book_title", ""),
+                "score": selected_task.get("score", 0),
+                "order_index": len(day_items),
+                "estimated_minutes": item_minutes,
+                "item_type": selected_task.get("item_type", "learning"),
+            }
+            if item_payload["item_type"] == "review":
+                review_items.append(item_payload)
+            else:
+                study_items.append(item_payload)
+
             day_total_minutes += item_minutes
             book_task_counts[selected_book_id] += 1
             last_book_id = selected_book_id
+
+        day_items = merge_learning_and_review(study_items, review_items)
+        for idx, item in enumerate(day_items):
+            item["order_index"] = idx
+        for idx, item in enumerate(study_items):
+            item["order_index"] = idx
+        for idx, item in enumerate(review_items):
+            item["order_index"] = idx
 
         if not day_items:
             continue
@@ -210,9 +256,27 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
             {
                 "day": day_number,
                 "items": day_items,
+                "study_items": study_items,
+                "review_items": review_items,
                 "total_minutes": day_total_minutes,
                 "target_date": (start_date + timedelta(days=day_number - 1)).isoformat(),
             }
         )
 
     return daily_plan
+
+
+def merge_learning_and_review(study_items: list[dict], review_items: list[dict]) -> list[dict]:
+    merged = []
+    study_idx = 0
+    review_idx = 0
+
+    while study_idx < len(study_items) or review_idx < len(review_items):
+        if review_idx < len(review_items):
+            merged.append(review_items[review_idx])
+            review_idx += 1
+        if study_idx < len(study_items):
+            merged.append(study_items[study_idx])
+            study_idx += 1
+
+    return merged
