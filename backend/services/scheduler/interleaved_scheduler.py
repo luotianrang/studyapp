@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timedelta
+from math import ceil
 
 from ..review_scheduler import get_review_minutes
 from .adaptive_scheduler import calculate_adaptive_priority
 from .attention_model import calculate_attention_score
+from .planning_layer import build_planning_context
 from .spaced_repetition import calculate_spaced_repetition
 
 DEFAULT_DAILY_CAPACITY_MINUTES = 90
@@ -33,6 +35,17 @@ def _resolve_task_minutes(task: dict) -> int:
 
 def _task_session_key(task: dict) -> tuple[int, str]:
     return (int(task.get("id", 0) or 0), str(task.get("item_type", "learning")))
+
+
+def _as_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _balanced_session_lengths(total_minutes: int, max_session_minutes: int) -> list[int]:
@@ -187,6 +200,9 @@ def _should_create_study_item(task: dict) -> bool:
 
 
 def _should_create_review_item(task: dict) -> bool:
+    planned_review_count = int(task.get("planned_review_count", 0) or 0)
+    if planned_review_count > 0:
+        return True
     review_count = int(task.get("review_count", 0) or 0)
     last_review_time = task.get("last_review_time")
     mastery = float(task.get("mastery", 0.5) or 0.5)
@@ -211,11 +227,14 @@ def _build_task_variant(task: dict, item_type: str, total_days: int, now: dateti
     variant["estimated_minutes"] = _resolve_task_minutes(task)
 
     if item_type == "review":
-        variant["estimated_minutes"] = get_review_minutes(variant.get("estimated_minutes", 10))
-        days_since_last_review = variant.get("days_since_last_review")
-        try:
-            review_anchor_day = max(1, int(days_since_last_review or 1))
-        except (TypeError, ValueError):
+        variant["estimated_minutes"] = _coerce_minutes(
+            variant.get("planned_review_minutes"),
+            get_review_minutes(variant.get("estimated_minutes", 10)),
+        )
+        next_review_time = _as_datetime(variant.get("next_review_time"))
+        if next_review_time is not None:
+            review_anchor_day = max(1, min(total_days, (next_review_time.date() - now.date()).days + 1))
+        else:
             review_anchor_day = 1
         variant["review_anchor_day"] = review_anchor_day
     return variant
@@ -235,7 +254,14 @@ def build_interleaved_tasks(knowledge_points: list[dict], total_days: int) -> li
         if _should_create_study_item(base_task):
             tasks.append(_build_task_variant(base_task, "learning", total_days, now))
         if _should_create_review_item(base_task):
-            tasks.append(_build_task_variant(base_task, "review", total_days, now))
+            planned_review_count = max(1, int(base_task.get("planned_review_count", 1) or 1))
+            for review_index in range(planned_review_count):
+                review_task = _build_task_variant(base_task, "review", total_days, now)
+                base_anchor = review_task.get("review_anchor_day", 1)
+                review_task["review_anchor_day"] = min(total_days, max(base_anchor, review_index + 1))
+                review_task["score"] = round(review_task["score"] - review_index * 0.01, 4)
+                review_task["final_score"] = round(review_task["final_score"] - review_index * 0.01, 4)
+                tasks.append(review_task)
 
     tasks.sort(
         key=lambda item: (
@@ -279,6 +305,7 @@ def _select_review_task_for_day(
     daily_capacity: int,
     day_number: int,
     forced_only: bool = False,
+    include_future: bool = False,
 ) -> int | None:
     remaining_capacity = daily_capacity - day_total_minutes
     if remaining_capacity <= 0:
@@ -291,10 +318,80 @@ def _select_review_task_for_day(
             continue
         if not forced_only and _is_forced_review(task, day_number):
             continue
+        if not include_future and _review_anchor_day(task) > day_number:
+            continue
         if _fits_within_day(task, remaining_capacity):
             return idx
 
     return None
+
+
+def _remaining_minutes(remaining_tasks: list[dict], *, review_only: bool | None = None) -> int:
+    total = 0
+    for task in remaining_tasks:
+        is_review = _is_review_task(task)
+        if review_only is True and not is_review:
+            continue
+        if review_only is False and is_review:
+            continue
+        total += _resolve_task_minutes(task)
+    return total
+
+
+def _min_remaining_task_minutes(remaining_tasks: list[dict], *, review_only: bool | None = None) -> int | None:
+    candidates = []
+    for task in remaining_tasks:
+        is_review = _is_review_task(task)
+        if review_only is True and not is_review:
+            continue
+        if review_only is False and is_review:
+            continue
+        candidates.append(_resolve_task_minutes(task))
+    return min(candidates) if candidates else None
+
+
+def _daily_target_minutes(remaining_tasks: list[dict], day_number: int, total_days: int, *, review_only: bool) -> int:
+    remaining_days = max(1, total_days - day_number + 1)
+    remaining_minutes = _remaining_minutes(remaining_tasks, review_only=review_only)
+    if remaining_minutes <= 0:
+        return 0
+    return max(MIN_SESSION_MINUTES, ceil(remaining_minutes / remaining_days))
+
+
+def _build_item_payload(selected_task: dict, order_index: int) -> dict:
+    return {
+        "knowledge_point_id": selected_task.get("id", 0),
+        "knowledge_point_title": selected_task.get("title", ""),
+        "chapter_id": selected_task.get("chapter_id", 0),
+        "chapter_title": selected_task.get("chapter_title", ""),
+        "book_id": selected_task.get("book_id", 0),
+        "book_title": selected_task.get("book_title", ""),
+        "score": selected_task.get("score", 0),
+        "order_index": order_index,
+        "estimated_minutes": _resolve_task_minutes(selected_task),
+        "item_type": selected_task.get("item_type", "learning"),
+    }
+
+
+def _append_selected_task(
+    remaining_tasks: list[dict],
+    selected_index: int,
+    day_items: list[dict],
+    study_items: list[dict],
+    review_items: list[dict],
+    book_task_counts: dict[int, int],
+) -> tuple[int, int | None]:
+    selected_task = remaining_tasks.pop(selected_index)
+    item_payload = _build_item_payload(selected_task, len(day_items))
+    day_items.append(item_payload)
+    if item_payload["item_type"] == "review":
+        review_items.append(item_payload)
+    else:
+        study_items.append(item_payload)
+
+    selected_book_id = item_payload.get("book_id", 0)
+    book_task_counts[selected_book_id] += 1
+    return item_payload["estimated_minutes"], selected_book_id
 
 
 def _select_learning_task_for_day(
@@ -356,15 +453,15 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
     if not knowledge_points or total_days <= 0 or daily_minutes <= 0:
         return []
 
-    daily_capacity = _resolve_daily_capacity(daily_minutes)
-    task_pool = build_scheduler_pipeline(knowledge_points, total_days, daily_minutes)
+    planning_context = build_planning_context(knowledge_points, total_days, daily_minutes)
+    total_days = planning_context["final_days"]
+    daily_capacity = _resolve_daily_capacity(planning_context["daily_capacity"])
+    task_pool = build_scheduler_pipeline(planning_context["planned_tasks"], total_days, daily_capacity)
     daily_plan = []
     remaining_tasks = list(task_pool)
     day_number = 1
 
-    while remaining_tasks:
-        if day_number > total_days and not daily_plan:
-            break
+    while remaining_tasks and day_number <= total_days:
 
         day_items = []
         study_items = []
@@ -372,6 +469,122 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
         day_total_minutes = 0
         book_task_counts = defaultdict(int)
         last_book_id = None
+        learning_target_minutes = _daily_target_minutes(remaining_tasks, day_number, total_days, review_only=False)
+        review_target_minutes = _daily_target_minutes(remaining_tasks, day_number, total_days, review_only=True)
+        learning_minutes_scheduled = 0
+        review_minutes_scheduled = 0
+        min_learning_minutes = _min_remaining_task_minutes(remaining_tasks, review_only=False)
+        min_review_minutes = _min_remaining_task_minutes(remaining_tasks, review_only=True)
+        can_mix_today = (
+            min_learning_minutes is not None
+            and min_review_minutes is not None
+            and (min_learning_minutes + min_review_minutes) <= daily_capacity
+        )
+
+        while remaining_tasks and not can_mix_today:
+            selected_index = _select_review_task_for_day(
+                remaining_tasks=remaining_tasks,
+                day_total_minutes=day_total_minutes,
+                daily_capacity=daily_capacity,
+                day_number=day_number,
+                forced_only=True,
+            )
+            if selected_index is None:
+                break
+
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
+            day_total_minutes += item_minutes
+            review_minutes_scheduled += item_minutes
+
+        while remaining_tasks and not can_mix_today:
+            selected_index = _select_review_task_for_day(
+                remaining_tasks=remaining_tasks,
+                day_total_minutes=day_total_minutes,
+                daily_capacity=daily_capacity,
+                day_number=day_number,
+                forced_only=False,
+            )
+            if selected_index is None:
+                break
+
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
+            day_total_minutes += item_minutes
+            review_minutes_scheduled += item_minutes
+
+        while remaining_tasks and can_mix_today and not study_items:
+            review_reservation = min_review_minutes if not review_items else 0
+            remaining_capacity = daily_capacity - day_total_minutes
+            if remaining_capacity <= review_reservation:
+                break
+
+            selected_index = _select_learning_task_for_day(
+                remaining_tasks=remaining_tasks,
+                day_items=day_items,
+                day_total_minutes=day_total_minutes,
+                daily_capacity=daily_capacity - review_reservation,
+                book_task_counts=book_task_counts,
+                last_book_id=last_book_id,
+            )
+            if selected_index is None:
+                break
+
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
+            day_total_minutes += item_minutes
+            learning_minutes_scheduled += item_minutes
+            if learning_minutes_scheduled >= learning_target_minutes:
+                break
+
+        while remaining_tasks:
+            if can_mix_today and not review_items and min_review_minutes is not None:
+                remaining_capacity = daily_capacity - day_total_minutes
+                if remaining_capacity <= min_review_minutes:
+                    break
+
+            selected_index = _select_learning_task_for_day(
+                remaining_tasks=remaining_tasks,
+                day_items=day_items,
+                day_total_minutes=day_total_minutes,
+                daily_capacity=daily_capacity - (min_review_minutes if can_mix_today and not review_items and min_review_minutes else 0),
+                book_task_counts=book_task_counts,
+                last_book_id=last_book_id,
+            )
+            if selected_index is None:
+                break
+
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
+            day_total_minutes += item_minutes
+            learning_minutes_scheduled += item_minutes
+
+            if learning_minutes_scheduled >= learning_target_minutes:
+                break
 
         while remaining_tasks:
             selected_index = _select_review_task_for_day(
@@ -384,27 +597,16 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
             if selected_index is None:
                 break
 
-            selected_task = remaining_tasks.pop(selected_index)
-            selected_book_id = selected_task.get("book_id", 0)
-            item_minutes = _resolve_task_minutes(selected_task)
-
-            item_payload = {
-                "knowledge_point_id": selected_task.get("id", 0),
-                "knowledge_point_title": selected_task.get("title", ""),
-                "chapter_id": selected_task.get("chapter_id", 0),
-                "chapter_title": selected_task.get("chapter_title", ""),
-                "book_id": selected_book_id,
-                "book_title": selected_task.get("book_title", ""),
-                "score": selected_task.get("score", 0),
-                "order_index": len(day_items),
-                "estimated_minutes": item_minutes,
-                "item_type": selected_task.get("item_type", "learning"),
-            }
-            day_items.append(item_payload)
-            review_items.append(item_payload)
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
             day_total_minutes += item_minutes
-            book_task_counts[selected_book_id] += 1
-            last_book_id = selected_book_id
+            review_minutes_scheduled += item_minutes
 
         while remaining_tasks:
             selected_index = _select_review_task_for_day(
@@ -417,65 +619,80 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
             if selected_index is None:
                 break
 
-            selected_task = remaining_tasks.pop(selected_index)
-            selected_book_id = selected_task.get("book_id", 0)
-            item_minutes = _resolve_task_minutes(selected_task)
-
-            item_payload = {
-                "knowledge_point_id": selected_task.get("id", 0),
-                "knowledge_point_title": selected_task.get("title", ""),
-                "chapter_id": selected_task.get("chapter_id", 0),
-                "chapter_title": selected_task.get("chapter_title", ""),
-                "book_id": selected_book_id,
-                "book_title": selected_task.get("book_title", ""),
-                "score": selected_task.get("score", 0),
-                "order_index": len(day_items),
-                "estimated_minutes": item_minutes,
-                "item_type": selected_task.get("item_type", "learning"),
-            }
-            day_items.append(item_payload)
-            review_items.append(item_payload)
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
             day_total_minutes += item_minutes
-            book_task_counts[selected_book_id] += 1
-            last_book_id = selected_book_id
+            review_minutes_scheduled += item_minutes
+
+            if review_minutes_scheduled >= review_target_minutes and review_items:
+                break
 
         while remaining_tasks:
+            reserve_for_due_review = 0
+            if min_review_minutes is not None:
+                has_due_review = _select_review_task_for_day(
+                    remaining_tasks=remaining_tasks,
+                    day_total_minutes=day_total_minutes,
+                    daily_capacity=daily_capacity,
+                    day_number=day_number,
+                    forced_only=False,
+                ) is not None
+                if has_due_review and not review_items:
+                    reserve_for_due_review = min_review_minutes
+
             selected_index = _select_learning_task_for_day(
                 remaining_tasks=remaining_tasks,
                 day_items=day_items,
                 day_total_minutes=day_total_minutes,
-                daily_capacity=daily_capacity,
+                daily_capacity=daily_capacity - reserve_for_due_review,
                 book_task_counts=book_task_counts,
                 last_book_id=last_book_id,
             )
             if selected_index is None:
                 break
 
-            selected_task = remaining_tasks.pop(selected_index)
-            selected_book_id = selected_task.get("book_id", 0)
-            item_minutes = _resolve_task_minutes(selected_task)
-
-            item_payload = {
-                "knowledge_point_id": selected_task.get("id", 0),
-                "knowledge_point_title": selected_task.get("title", ""),
-                "chapter_id": selected_task.get("chapter_id", 0),
-                "chapter_title": selected_task.get("chapter_title", ""),
-                "book_id": selected_book_id,
-                "book_title": selected_task.get("book_title", ""),
-                "score": selected_task.get("score", 0),
-                "order_index": len(day_items),
-                "estimated_minutes": item_minutes,
-                "item_type": selected_task.get("item_type", "learning"),
-            }
-            day_items.append(item_payload)
-            if item_payload["item_type"] == "review":
-                review_items.append(item_payload)
-            else:
-                study_items.append(item_payload)
-
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
             day_total_minutes += item_minutes
-            book_task_counts[selected_book_id] += 1
-            last_book_id = selected_book_id
+            learning_minutes_scheduled += item_minutes
+
+        while remaining_tasks:
+            selected_index = _select_review_task_for_day(
+                remaining_tasks=remaining_tasks,
+                day_total_minutes=day_total_minutes,
+                daily_capacity=daily_capacity,
+                day_number=day_number,
+                forced_only=False,
+                include_future=not review_items,
+            )
+            if selected_index is None:
+                break
+
+            item_minutes, last_book_id = _append_selected_task(
+                remaining_tasks,
+                selected_index,
+                day_items,
+                study_items,
+                review_items,
+                book_task_counts,
+            )
+            day_total_minutes += item_minutes
+            review_minutes_scheduled += item_minutes
+
+            if review_minutes_scheduled >= review_target_minutes:
+                break
 
         day_items = merge_learning_and_review(study_items, review_items)
         for idx, item in enumerate(day_items):
@@ -497,6 +714,10 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
                 "review_items": review_items,
                 "total_minutes": day_total_minutes,
                 "target_date": (start_date + timedelta(days=day_number - 1)).isoformat(),
+                "recommended_days": planning_context["recommended_days"],
+                "final_days": planning_context["final_days"],
+                "total_workload_minutes": planning_context["total_workload_minutes"],
+                "explanation": planning_context["explanation"],
             }
         )
         day_number += 1
@@ -505,16 +726,23 @@ def generate_interleaved_plan(knowledge_points: list[dict], total_days: int, dai
 
 
 def merge_learning_and_review(study_items: list[dict], review_items: list[dict]) -> list[dict]:
-    merged = []
-    study_idx = 0
-    review_idx = 0
+    if not study_items:
+        return list(review_items)
+    if not review_items:
+        return list(study_items)
 
-    while study_idx < len(study_items) or review_idx < len(review_items):
+    front_study_count = max(1, (len(study_items) + 1) // 2)
+    merged = list(study_items[:front_study_count])
+    remaining_study = study_items[front_study_count:]
+    review_idx = 0
+    study_idx = 0
+
+    while review_idx < len(review_items) or study_idx < len(remaining_study):
         if review_idx < len(review_items):
             merged.append(review_items[review_idx])
             review_idx += 1
-        if study_idx < len(study_items):
-            merged.append(study_items[study_idx])
+        if study_idx < len(remaining_study):
+            merged.append(remaining_study[study_idx])
             study_idx += 1
 
     return merged

@@ -85,3 +85,9 @@
 - [x] 多书调度已升级为 capacity-aware + review-protected scheduler，并已补 session-based splitting 回归测试。
 - [x] 计划接口已新增 `effective_days`，保留 `total_days` 为用户请求语义。
 - [x] 已使用 `py -3.13 -m pytest` 验证调度相关 11 条测试通过。
+
+## 2026-06-18 Update (UTF-8 Append)
+- [x] Added planning layer before scheduler to estimate total workload and auto-derive plan duration from `daily_minutes`.
+- [x] Switched plan generation semantics from user-selected days to system-derived `recommended_days` / `final_days`.
+- [x] Preserved interleaved scheduler, spaced repetition, review protection, and capacity-aware day allocation.
+- [ ] Consider exposing `recommended_days` and `explanation` directly in `PlanResponse` for frontend display.

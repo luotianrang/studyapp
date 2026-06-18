@@ -122,10 +122,24 @@ def test_effective_days_is_persisted_without_overwriting_total_days(monkeypatch)
         return [
             {"day": 1, "items": [], "total_minutes": 0},
             {"day": 2, "items": [], "total_minutes": 0},
-            {"day": 3, "items": [], "total_minutes": 0},
         ]
 
     monkeypatch.setattr(plan_service, "generate_interleaved_plan", fake_multi)
+    monkeypatch.setattr(
+        plan_service,
+        "build_planning_context",
+        lambda *args, **kwargs: {
+            "planned_tasks": [],
+            "daily_capacity": 30,
+            "final_days": 2,
+            "recommended_days": 2,
+            "total_workload_minutes": 60,
+            "compressed_workload_minutes": 60,
+            "horizon_capacity": 60,
+            "requested_days": 2,
+            "explanation": "",
+        },
+    )
     monkeypatch.setattr(plan_service, "_build_learning_metrics", lambda *args, **kwargs: {})
 
     book1 = SimpleNamespace(id=1, title="Book A", status="analyzed")
@@ -137,4 +151,82 @@ def test_effective_days_is_persisted_without_overwriting_total_days(monkeypatch)
     result = plan_service.create_plan(db, user_id=1, book_id=1, total_days=2, daily_minutes=30, book_ids=[1, 2])
 
     assert result.total_days == 2
-    assert result.effective_days == 3
+    assert result.effective_days == 2
+
+
+def test_plan_name_includes_estimated_days_without_changing_api_shape(monkeypatch):
+    def fake_multi(*args, **kwargs):
+        return [
+            {"day": 1, "items": [], "total_minutes": 0},
+            {"day": 2, "items": [], "total_minutes": 0},
+        ]
+
+    monkeypatch.setattr(plan_service, "generate_interleaved_plan", fake_multi)
+    monkeypatch.setattr(
+        plan_service,
+        "build_planning_context",
+        lambda *args, **kwargs: {
+            "planned_tasks": [],
+            "daily_capacity": 120,
+            "final_days": 5,
+            "recommended_days": 5,
+            "total_workload_minutes": 600,
+            "compressed_workload_minutes": 600,
+            "horizon_capacity": 600,
+            "requested_days": 2,
+            "explanation": "Based on 120 minutes per day, the system recommends about 5 days.",
+        },
+    )
+    monkeypatch.setattr(plan_service, "_build_learning_metrics", lambda *args, **kwargs: {})
+
+    book1 = SimpleNamespace(id=1, title="Book A", status="analyzed")
+    book2 = SimpleNamespace(id=2, title="Book B", status="analyzed")
+    kp1 = SimpleNamespace(id=11, chapter_id=101, title="KP1", description="", importance=3, estimated_minutes=10, order_index=0, book_id=1)
+    kp2 = SimpleNamespace(id=12, chapter_id=102, title="KP2", description="", importance=3, estimated_minutes=10, order_index=0, book_id=2)
+    db = DummyDB([book1, book2], [kp1, kp2])
+
+    result = plan_service.create_plan(db, user_id=1, book_id=1, total_days=2, daily_minutes=120, book_ids=[1, 2])
+
+    assert result.total_days == 5
+    assert result.effective_days == 2
+    saved_plan = next(obj for obj in db.added if getattr(obj, "__class__", None).__name__ == "StudyPlan")
+    assert "推荐5天" in saved_plan.name
+
+
+def test_multi_book_scheduler_uses_planning_layer_horizon(monkeypatch):
+    captured = {}
+
+    def fake_multi(kp_list, total_days, daily_minutes):
+        captured["total_days"] = total_days
+        captured["daily_minutes"] = daily_minutes
+        return [{"day": 1, "items": [], "total_minutes": 0}]
+
+    monkeypatch.setattr(plan_service, "generate_interleaved_plan", fake_multi)
+    monkeypatch.setattr(
+        plan_service,
+        "build_planning_context",
+        lambda *args, **kwargs: {
+            "planned_tasks": [],
+            "daily_capacity": 120,
+            "final_days": 4,
+            "recommended_days": 4,
+            "total_workload_minutes": 480,
+            "compressed_workload_minutes": 480,
+            "horizon_capacity": 480,
+            "requested_days": 1,
+            "explanation": "",
+        },
+    )
+    monkeypatch.setattr(plan_service, "_build_learning_metrics", lambda *args, **kwargs: {})
+
+    book1 = SimpleNamespace(id=1, title="Book A", status="analyzed")
+    book2 = SimpleNamespace(id=2, title="Book B", status="analyzed")
+    kp1 = SimpleNamespace(id=11, chapter_id=101, title="KP1", description="", importance=3, estimated_minutes=10, order_index=0, book_id=1)
+    kp2 = SimpleNamespace(id=12, chapter_id=102, title="KP2", description="", importance=3, estimated_minutes=10, order_index=0, book_id=2)
+    db = DummyDB([book1, book2], [kp1, kp2])
+
+    result = plan_service.create_plan(db, user_id=1, book_id=1, total_days=1, daily_minutes=120, book_ids=[1, 2])
+
+    assert captured["total_days"] == 4
+    assert captured["daily_minutes"] == 120
+    assert result.total_days == 4

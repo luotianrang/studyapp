@@ -9,7 +9,7 @@ from ..models import Book, Chapter, KnowledgePoint, PlanDay, PlanItem, ReviewLog
 from ..schemas import PlanDayResponse, PlanItemResponse, PlanResponse, ReviewRecordResponse, ReviewStatsResponse
 from .plan_generator import generate_plan
 from .review_scheduler import sm2_calculate
-from .scheduler import generate_interleaved_plan
+from .scheduler import build_planning_context, generate_interleaved_plan
 
 logger = get_logger(__name__)
 
@@ -271,10 +271,15 @@ def _collect_kp_list(db: Session, book_ids: list[int], user_id: int) -> list[dic
     return kp_list
 
 
-def _build_plan_data(kp_list: list[dict], total_days: int, daily_minutes: int, use_multibook: bool) -> list[dict]:
+def _build_plan_data(kp_list: list[dict], total_days: int, daily_minutes: int, use_multibook: bool) -> tuple[list[dict], dict]:
+    planning_context = build_planning_context(kp_list, total_days, daily_minutes)
     if use_multibook:
-        return generate_interleaved_plan(kp_list, total_days, daily_minutes)
-    return generate_plan(kp_list, total_days, daily_minutes)
+        return generate_interleaved_plan(kp_list, planning_context["final_days"], daily_minutes), planning_context
+    return generate_plan(
+        planning_context["planned_tasks"],
+        planning_context["final_days"],
+        planning_context["daily_capacity"],
+    ), planning_context
 
 
 def create_plan(
@@ -306,24 +311,40 @@ def create_plan(
     kp_list = _collect_kp_list(db, normalized_book_ids, user_id)
 
     plan_data = []
+    planning_context = {
+        "recommended_days": total_days,
+        "final_days": total_days,
+        "total_workload_minutes": 0,
+        "compressed_workload_minutes": 0,
+        "daily_capacity": daily_minutes,
+        "requested_days": total_days,
+        "explanation": "",
+    }
     try:
-        plan_data = _build_plan_data(kp_list, total_days, daily_minutes, len(normalized_book_ids) > 1)
+        plan_data, planning_context = _build_plan_data(kp_list, total_days, daily_minutes, len(normalized_book_ids) > 1)
     except Exception:
         logger.exception("Adaptive scheduler failed, falling back to legacy plan generator")
 
     if not plan_data:
-        plan_data = generate_plan(kp_list, total_days, daily_minutes)
+        planning_context = build_planning_context(kp_list, total_days, daily_minutes)
+        plan_data = generate_plan(
+            planning_context["planned_tasks"],
+            planning_context["final_days"],
+            planning_context["daily_capacity"],
+        )
 
     total_kps = sum(len(day["items"]) for day in plan_data)
     effective_days = max((day.get("day", 0) for day in plan_data), default=0)
+    final_days = planning_context.get("final_days", effective_days or total_days)
     plan_title = books[0].title if len(books) == 1 else " / ".join(book.title for book in books)
-    plan_name = f"{plan_title} - {total_days}\u5929\u8ba1\u5212\uff08\u5171{total_kps}\u4e2a\u77e5\u8bc6\u70b9\uff09"
+    recommended_days = planning_context.get("recommended_days", final_days)
+    plan_name = f"{plan_title} - {final_days}\u5929\u8ba1\u5212\uff08\u63a8\u8350{recommended_days}\u5929\uff0c\u5171{total_kps}\u4e2a\u4efb\u52a1\uff09"
     plan = StudyPlan(
         book_id=primary_book_id,
         user_id=user_id,
         name=plan_name,
-        total_days=total_days,
-        effective_days=effective_days,
+        total_days=final_days,
+        effective_days=effective_days or final_days,
         daily_minutes=daily_minutes,
         status="active",
     )

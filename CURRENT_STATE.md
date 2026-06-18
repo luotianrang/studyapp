@@ -116,3 +116,10 @@
 - review protection layer 已上线：review 先排、容量紧张时优先保护 review，超过 1 天延迟后强制优先处理。
 - StudyPlan 新增 `effective_days`，用于表示实际生成天数；`total_days` 保持用户请求语义不变。
 - 已在本地用 `py -3.13 -m pytest` 跑通调度相关 11 条测试。
+
+## 2026-06-18 Update (UTF-8 Append)
+- Added a planning layer before scheduling to estimate total workload from learning load plus spaced-review load.
+- Plan generation is now primarily driven by `daily_minutes`; the system auto-derives `recommended_days` and uses that horizon for scheduling.
+- Existing scheduler architecture remains in place: interleaved learning/review, capacity-aware day filling, review protection, and session splitting are preserved.
+- `StudyPlan.total_days` now stores the auto-derived plan duration, while `effective_days` still reflects the realized scheduled span.
+- Local verification passed: `py -3.13 -m pytest backend/tests/test_planning_layer.py backend/tests/test_spaced_repetition_integration.py backend/tests/test_plan_service_scheduler_routing.py`

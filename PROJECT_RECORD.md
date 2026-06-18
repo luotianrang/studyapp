@@ -17,6 +17,30 @@
 
 ## 版本历史
 
+### 2026-06-18 —— 计划系统升级：新增 planning layer，并切换为按 daily_minutes 自动推导学习周期
+
+背景：原系统先以用户输入天数作为主约束，后续再在 scheduler 中压缩计划，容易出现“推荐周期”和“最终周期”语义冲突。现在调整为：由 planning layer 基于每日学习时长、知识点学习负载和复习负载自动推导所需天数，scheduler 只负责在该 horizon 内做 capacity-aware 的学习/复习混排。
+
+改动清单：
+1. 新增 `backend/services/scheduler/planning_layer.py`，在 scheduling 之前统一计算 learning workload、review workload、`total_workload_minutes`
+2. planning layer 以 `daily_minutes` 作为 daily capacity，自动推导 `recommended_days = ceil(total_workload_minutes / daily_capacity)`
+3. planning layer 输出 `recommended_days`、`final_days`、`explanation`、`total_workload_minutes`
+4. `backend/services/plan_service.py` 改为优先使用 planning layer 推导出的 `final_days` 创建计划，不再以用户输入天数作为主约束
+5. `backend/services/scheduler/interleaved_scheduler.py` 保持原有 interleaved scheduler 架构，但 horizon 改为消费 planning layer 输出
+6. 保留 spaced repetition、review protection、capacity-aware scheduling、session-based splitting，不重写 scheduler 主体
+7. 新增 `backend/tests/test_planning_layer.py`，并扩展现有调度测试与 plan service 路由测试
+8. 本地验证通过：`py -3.13 -m pytest backend/tests/test_planning_layer.py backend/tests/test_spaced_repetition_integration.py backend/tests/test_plan_service_scheduler_routing.py`
+
+涉及文件：
+- backend/services/scheduler/planning_layer.py
+- backend/services/scheduler/__init__.py
+- backend/services/scheduler/interleaved_scheduler.py
+- backend/services/plan_service.py
+- backend/tests/test_planning_layer.py
+- backend/tests/test_spaced_repetition_integration.py
+- backend/tests/test_plan_service_scheduler_routing.py
+- CURRENT_STATE.md / NEXT_TASKS.md / PROJECT_RECORD.md
+
 ### 2026-06-18 —— 调度系统升级：capacity-aware scheduler + review protection + effective_days
 
 背景：原多书 scheduler 更像“按分数排序的任务投放器”，没有真正的分钟容量约束。实际问题包括：单日过载、短学习时长下计划不现实、review 在容量紧张时可能被普通学习挤掉，同时 `StudyPlan.total_days` 仍保存用户请求值，和实际生成天数不一致。

@@ -70,6 +70,11 @@ def test_multibook_plan_contains_study_and_review_items():
     assert plan
     assert any(day["study_items"] for day in plan)
     assert any(day["review_items"] for day in plan)
+    mixed_days = [day for day in plan if day["study_items"] and day["review_items"]]
+    assert mixed_days
+    for day in mixed_days:
+        first_review_index = min(idx for idx, item in enumerate(day["items"]) if item["item_type"] == "review")
+        assert first_review_index > 0
 
 
 def test_multibook_plan_enforces_daily_capacity():
@@ -144,6 +149,7 @@ def test_multibook_plan_enforces_daily_capacity():
 
     assert len(plan) >= 2
     assert all(day["total_minutes"] <= 45 for day in plan)
+    assert len(plan) <= 3
 
 
 def test_short_daily_minutes_spreads_work_across_more_days():
@@ -178,8 +184,10 @@ def test_short_daily_minutes_spreads_work_across_more_days():
         start_date=now.replace(hour=0, minute=0, second=0, microsecond=0),
     )
 
-    assert len(plan) >= len(knowledge_points)
+    assert len(plan) > 2
     assert all(day["total_minutes"] <= 5 for day in plan)
+    assert all(day["final_days"] >= len(plan) for day in plan)
+    assert all(day["recommended_days"] >= len(plan) for day in plan)
 
 
 def test_review_is_protected_before_learning_when_capacity_is_tight():
@@ -316,6 +324,123 @@ def test_forced_review_stays_ahead_of_learning_after_one_day_delay():
     assert plan[0]["review_items"]
     assert plan[1]["review_items"]
     assert all(item["knowledge_point_id"] != 3 for item in plan[1]["items"])
+
+
+def test_plan_respects_horizon_even_when_work_overflows():
+    now = datetime(2026, 6, 18, 9, 0, 0)
+    knowledge_points = []
+    for idx in range(1, 7):
+        knowledge_points.append(
+            {
+                "id": idx,
+                "title": f"Overflow-{idx}",
+                "chapter_id": 100 + idx,
+                "chapter_title": f"C{idx}",
+                "chapter_number": idx,
+                "book_id": 200 + idx,
+                "book_title": f"Book{idx}",
+                "importance": 5,
+                "difficulty": 0.8,
+                "estimated_minutes": 35,
+                "order_index": 0,
+                "learning_metrics": {"completion_rate": 0.0, "skip_rate": 0.0, "error_rate": 0.0},
+                "review_state": {"review_count": 0, "mastery": 0.95, "last_review_time": None},
+                "last_review_time": None,
+                "review_count": 0,
+                "mastery": 0.95,
+            }
+        )
+
+    plan = generate_interleaved_plan(
+        knowledge_points,
+        total_days=2,
+        daily_minutes=40,
+        start_date=now.replace(hour=0, minute=0, second=0, microsecond=0),
+    )
+
+    assert len(plan) > 2
+    assert max(day["day"] for day in plan) == len(plan)
+    assert all(day["total_minutes"] <= 40 for day in plan)
+    assert all(day["final_days"] >= len(plan) for day in plan)
+
+
+def test_due_reviews_are_interleaved_with_learning_on_same_day():
+    now = datetime(2026, 6, 18, 9, 0, 0)
+    knowledge_points = [
+        {
+            "id": 1,
+            "title": "Learn-A",
+            "chapter_id": 11,
+            "chapter_title": "C1",
+            "chapter_number": 1,
+            "book_id": 101,
+            "book_title": "Book1",
+            "importance": 5,
+            "difficulty": 0.6,
+            "estimated_minutes": 20,
+            "order_index": 0,
+            "learning_metrics": {"completion_rate": 0.0, "skip_rate": 0.0, "error_rate": 0.0},
+            "review_state": {"review_count": 0, "mastery": 0.5, "last_review_time": None},
+            "last_review_time": None,
+            "review_count": 0,
+            "mastery": 0.5,
+        },
+        {
+            "id": 2,
+            "title": "Review-A",
+            "chapter_id": 12,
+            "chapter_title": "C2",
+            "chapter_number": 1,
+            "book_id": 102,
+            "book_title": "Book2",
+            "importance": 5,
+            "difficulty": 0.5,
+            "estimated_minutes": 18,
+            "order_index": 0,
+            "learning_metrics": {"completion_rate": 1.0, "skip_rate": 0.0, "error_rate": 0.2},
+            "review_state": {
+                "review_count": 2,
+                "mastery": 0.4,
+                "last_review_time": (now - timedelta(days=3)).isoformat(),
+                "next_review_time": now.isoformat(),
+            },
+            "last_review_time": (now - timedelta(days=3)).isoformat(),
+            "review_count": 2,
+            "mastery": 0.4,
+        },
+        {
+            "id": 3,
+            "title": "Learn-B",
+            "chapter_id": 13,
+            "chapter_title": "C3",
+            "chapter_number": 1,
+            "book_id": 103,
+            "book_title": "Book3",
+            "importance": 4,
+            "difficulty": 0.5,
+            "estimated_minutes": 20,
+            "order_index": 0,
+            "learning_metrics": {"completion_rate": 0.0, "skip_rate": 0.0, "error_rate": 0.0},
+            "review_state": {"review_count": 0, "mastery": 0.5, "last_review_time": None},
+            "last_review_time": None,
+            "review_count": 0,
+            "mastery": 0.5,
+        },
+    ]
+
+    plan = generate_interleaved_plan(
+        knowledge_points,
+        total_days=2,
+        daily_minutes=60,
+        start_date=now.replace(hour=0, minute=0, second=0, microsecond=0),
+    )
+
+    mixed_days = [day for day in plan if day["study_items"] and day["review_items"]]
+    assert mixed_days
+    for day in mixed_days:
+        review_positions = [idx for idx, item in enumerate(day["items"]) if item["item_type"] == "review"]
+        assert review_positions
+        assert min(review_positions) >= 1
 
 
 def test_long_learning_task_prefers_same_day_sessions_without_tiny_fragments():
