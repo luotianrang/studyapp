@@ -7,6 +7,7 @@ from ..models import Book, Chapter, KnowledgePoint, PlanDay, PlanItem, ReviewLog
 from ..schemas import PlanDayResponse, PlanItemResponse, PlanResponse, ReviewRecordResponse, ReviewStatsResponse
 from .plan_generator import generate_plan
 from .review_scheduler import sm2_calculate
+from .scheduler import generate_interleaved_plan
 
 logger = get_logger(__name__)
 
@@ -89,46 +90,95 @@ def _process_review(db: Session, plan_id: int, item: PlanItem, quality: int, use
     return rr
 
 
-def create_plan(db: Session, user_id: int, book_id: int, total_days: int, daily_minutes: int) -> PlanResponse:
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
+def _load_books(db: Session, book_ids: list[int]) -> list[Book]:
+    books = db.query(Book).filter(Book.id.in_(book_ids)).order_by(Book.id).all()
+    if len(books) != len(set(book_ids)):
         raise LookupError("Book not found")
-    if book.status != "analyzed":
-        raise ValueError(f"Book must be analyzed first. Current status: {book.status}")
-    existing_active = db.query(StudyPlan).filter(StudyPlan.book_id == book_id, StudyPlan.status == "active").first()
+    for book in books:
+        if book.status != "analyzed":
+            raise ValueError(f"Book must be analyzed first. Current status: {book.status}")
+    return books
+
+
+def _collect_kp_list(db: Session, book_ids: list[int]) -> list[dict]:
+    rows = (
+        db.query(
+            KnowledgePoint,
+            Chapter.title.label("chapter_title"),
+            Chapter.chapter_number.label("chapter_number"),
+            Book.id.label("book_id"),
+            Book.title.label("book_title"),
+        )
+        .join(Chapter, KnowledgePoint.chapter_id == Chapter.id)
+        .join(Book, Chapter.book_id == Book.id)
+        .filter(Chapter.book_id.in_(book_ids))
+        .order_by(Book.id, Chapter.chapter_number, KnowledgePoint.order_index)
+        .all()
+    )
+
+    kp_list = []
+    for kp, chapter_title, chapter_number, source_book_id, book_title in rows:
+        kp_list.append(
+            {
+                "id": kp.id,
+                "title": kp.title,
+                "description": kp.description,
+                "importance": kp.importance,
+                "difficulty": 0.5 if getattr(kp, "difficulty", None) is None else getattr(kp, "difficulty"),
+                "estimated_minutes": kp.estimated_minutes,
+                "order_index": kp.order_index,
+                "chapter_id": kp.chapter_id,
+                "chapter_title": chapter_title,
+                "chapter_number": chapter_number or 0,
+                "book_id": source_book_id,
+                "book_title": book_title,
+            }
+        )
+    return kp_list
+
+
+def create_plan(
+    db: Session,
+    user_id: int,
+    book_id: int,
+    total_days: int,
+    daily_minutes: int,
+    book_ids: list[int] | None = None,
+) -> PlanResponse:
+    normalized_book_ids = list(dict.fromkeys(book_ids or []))
+    if not normalized_book_ids:
+        normalized_book_ids = [book_id]
+
+    books = _load_books(db, normalized_book_ids)
+    primary_book_id = normalized_book_ids[0]
+    existing_active = db.query(StudyPlan).filter(StudyPlan.book_id == primary_book_id, StudyPlan.status == "active").first()
     if existing_active:
         raise ValueError("An active plan already exists for this book")
 
-    kps_with_chapter = db.query(KnowledgePoint, Chapter.title.label("chapter_title")) \
-        .join(Chapter, KnowledgePoint.chapter_id == Chapter.id) \
-        .filter(Chapter.book_id == book_id) \
-        .order_by(Chapter.chapter_number, KnowledgePoint.order_index).all()
+    kp_list = _collect_kp_list(db, normalized_book_ids)
+    use_multibook = len(normalized_book_ids) > 1
 
-    kp_list = []
-    for kp, chapter_title in kps_with_chapter:
-        kp_list.append({
-            "id": kp.id,
-            "title": kp.title,
-            "description": kp.description,
-            "importance": kp.importance,
-            "estimated_minutes": kp.estimated_minutes,
-            "order_index": kp.order_index,
-            "chapter_id": kp.chapter_id,
-            "chapter_title": chapter_title,
-        })
+    if use_multibook:
+        plan_data = generate_interleaved_plan(kp_list, total_days, daily_minutes)
+    else:
+        plan_data = generate_plan(kp_list, total_days, daily_minutes)
 
-    plan_data = generate_plan(kp_list, total_days, daily_minutes)
+    if not plan_data:
+        plan_data = generate_plan(kp_list, total_days, daily_minutes)
+
     total_kps = sum(len(day["items"]) for day in plan_data)
+    plan_title = books[0].title if len(books) == 1 else " / ".join(book.title for book in books)
     plan = StudyPlan(
-        book_id=book_id,
+        book_id=primary_book_id,
         user_id=user_id,
-        name=f"{book.title} - {total_days}天计划({total_kps}个知识点)",
+        name=f"{plan_title} - {total_days}澶╄鍒?{total_kps}涓煡璇嗙偣)",
         total_days=total_days,
         daily_minutes=daily_minutes,
         status="active",
     )
     db.add(plan)
     db.flush()
+
     for day_data in plan_data:
         target_date = None
         if day_data.get("target_date"):
@@ -156,6 +206,7 @@ def create_plan(db: Session, user_id: int, book_id: int, total_days: int, daily_
                     completed=False,
                 )
             )
+
     for kp in kp_list:
         existing_rr = db.query(ReviewRecord).filter(
             ReviewRecord.plan_id == plan.id,
@@ -172,6 +223,7 @@ def create_plan(db: Session, user_id: int, book_id: int, total_days: int, daily_
                     repetitions=0,
                 )
             )
+
     db.commit()
     db.refresh(plan)
     return _plan_response(plan)

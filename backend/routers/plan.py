@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/plans", tags=["plans"])
 @router.post("/generate", response_model=PlanResponse)
 def create_plan(req: PlanGenerateRequest, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        return plan_service.create_plan(db, user_id, req.book_id, req.total_days, req.daily_minutes)
+        return plan_service.create_plan(db, user_id, req.book_id, req.total_days, req.daily_minutes, req.book_ids)
     except LookupError as exc:
         raise HTTPException(404, str(exc))
     except ValueError as exc:

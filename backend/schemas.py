@@ -101,6 +101,7 @@ class KnowledgePointResponse(BaseModel):
 
 class PlanGenerateRequest(BaseModel):
     book_id: int
+    book_ids: List[int] = []
     total_days: int
     daily_minutes: int
 
